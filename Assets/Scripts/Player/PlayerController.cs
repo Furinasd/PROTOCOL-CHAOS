@@ -10,7 +10,6 @@ public class DemoPlayerController : MonoBehaviour
     public bool IsDodging => currentState == PlayerState.Dashing;
 
     [Header("🎯 状态系统 (FSM)")]
-    public PlayerState currentState = PlayerState.Normal;
 
     [Header("🏃 基础移动 (Movement)")]
     public float moveSpeed = 8f;
@@ -41,6 +40,9 @@ public class DemoPlayerController : MonoBehaviour
 
     // 状态机枚举
     public enum PlayerState { Normal, Jumping, Dashing, Hitlag }
+    public PlayerState currentState = PlayerState.Normal;
+    private PlayerState previousStateBeforeHitlag = PlayerState.Normal;
+    private Coroutine hitlagCoroutine;
 
     private void Start()
     {
@@ -183,17 +185,27 @@ public class DemoPlayerController : MonoBehaviour
     {
         if (gameObject.activeInHierarchy)
         {
-            StartCoroutine(HitlagRoutine(duration));
+            if (hitlagCoroutine != null) StopCoroutine(hitlagCoroutine);
+            hitlagCoroutine = StartCoroutine(HitlagRoutine(duration));
         }
     }
 
     private IEnumerator HitlagRoutine(float duration)
     {
-        PlayerState previousState = currentState;
+        // 只有非 Hitlag 状态进入时才记录之前的状态，防止连续受击导致的逻辑回退错误
+        if (currentState != PlayerState.Hitlag)
+        {
+            previousStateBeforeHitlag = currentState;
+        }
+        
         currentState = PlayerState.Hitlag;
-        // 这里后续会配合 Time.timeScale 做出极其夸张的顿帧停顿感
+        
+        // 这里配合 Time.timeScale 做出极其夸张的顿帧停顿感
         yield return new WaitForSecondsRealtime(duration); 
-        currentState = previousState;
+        
+        // 恢复之前的状态
+        currentState = previousStateBeforeHitlag;
+        hitlagCoroutine = null;
     }
     #endregion
 }

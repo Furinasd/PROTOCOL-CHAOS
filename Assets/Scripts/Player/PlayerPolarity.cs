@@ -12,7 +12,7 @@ public class PlayerPolarity : MonoBehaviour
     public PolarityColor CurrentColor { get; private set; } = PolarityColor.Blue;
     
     [Header("Parry Settings")]
-    public float parryWindowDuration = 0.2f;
+    public float parryWindowDuration = 0.35f; // 轻微放宽判定窗口以优化手感
     public bool IsParryWindow { get; private set; }
     private float parryTimer = 0f;
 
