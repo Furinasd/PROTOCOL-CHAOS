@@ -1,51 +1,109 @@
 using System.Collections;
 using UnityEngine;
+using Unity.Cinemachine;
 
-/// <summary>
-/// 全局事件反馈系统：主要承接 TimeScale 等屏幕表现
-/// </summary>
+// ==========================================
+// Title: 战斗反馈与打击感调度中心 (Combat Feedback Manager)
+// Description: 统筹顿帧(Hitlag)、相机震动(Camera Shake)与时间缩放。
+//              践行逻辑与表现解耦的原则——战斗逻辑只需调用此单例，
+//              无需关心如何控制摄像机或 TimeScale 细节。
+// ==========================================
+
+[RequireComponent(typeof(CinemachineImpulseSource))]
 public class CombatFeedbackManager : MonoBehaviour
 {
+    // 单例：全局极速调用
     public static CombatFeedbackManager Instance { get; private set; }
 
-    [Header("Hitlag Settings")]
-    public float hitlagTimeScale = 0.1f;
-    public float hitlagDurationRealtime = 0.15f;
+    [Header("🎥 相机震动参数 (Cinemachine Impulse)")]
+    private CinemachineImpulseSource impulseSource;
+    
+    [Tooltip("完美弹刀时的震动强度（夸张）")]
+    public float parryShakeForce = 2.0f;
+    
+    [Tooltip("受击时的震动强度")]
+    public float hitShakeForce = 1.0f;
+    
+    [Tooltip("宕机处决时的震动强度（最强）")]
+    public float executeShakeForce = 3.0f;
 
-    [Header("Screen Shake Settings")]
-    public bool enableScreenShake = true;
+    [Header("⏱️ 顿帧安全锁 (Hitlag)")]
+    private bool isHitlagging = false;
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-        }
-        else
-        {
-            Instance = this;
-        }
+        if (Instance == null) { Instance = this; }
+        else { Destroy(gameObject); return; }
+        
+        impulseSource = GetComponent<CinemachineImpulseSource>();
     }
 
+    // ──────────────────────────────────
+    // 公开接口：由游戏逻辑调用（3种场合）
+    // ──────────────────────────────────
+
+    /// <summary>
+    /// 【完美弹刀】综合反馈：强烈凝滞感 + 剧烈震动
+    /// </summary>
+    public void TriggerParryFeedback()
+    {
+        GenerateImpulse(parryShakeForce);
+        TriggerHitlag(timeScale: 0.05f, duration: 0.15f);
+    }
+
+    /// <summary>
+    /// 【普通受伤】综合反馈：短促顿帧 + 中等震动
+    /// </summary>
+    public void TriggerDamageFeedback()
+    {
+        GenerateImpulse(hitShakeForce);
+        TriggerHitlag(timeScale: 0.4f, duration: 0.1f);
+    }
+
+    /// <summary>
+    /// 【宕机处决】综合反馈：最夸张的震动，无顿帧（保留时间流速体验处决的流畅感）
+    /// </summary>
     public void TriggerAnnihilationFeedback()
     {
-        // 1. 触发卡肉顿帧
-        StartCoroutine(HitlagRoutine());
+        GenerateImpulse(executeShakeForce);
+    }
 
-        // 2. 触发屏幕震动
-        if (enableScreenShake)
+    // ──────────────────────────────────
+    // 内部实现
+    // ──────────────────────────────────
+
+    private void GenerateImpulse(float force)
+    {
+        if (impulseSource != null)
         {
-            // 使用 SendMessage 避免在某些项目中因为未引入 Assembly Definition Reference 导致的编译错误
-            SendMessage("GenerateImpulse", SendMessageOptions.DontRequireReceiver);
-            Debug.Log("【视听表现】已触发 Cinemachine 剧烈画面震动 Impulse！");
+            impulseSource.GenerateImpulseWithForce(force);
         }
     }
 
-    private IEnumerator HitlagRoutine()
+    /// <summary>
+    /// 核心顿帧控制器：使用 unscaledDeltaTime 等待，防止 TimeScale 被自身吞噬。
+    /// 内置安全锁，防止连续触发导致恢复时序错乱。
+    /// </summary>
+    private void TriggerHitlag(float timeScale, float duration)
     {
-        Time.timeScale = hitlagTimeScale;
-        // 等待不受 TimeScale 缩放影响的真实时间延迟
-        yield return new WaitForSecondsRealtime(hitlagDurationRealtime);
-        Time.timeScale = 1f;
+        if (isHitlagging) return;
+        StartCoroutine(HitlagCoroutine(timeScale, duration));
+    }
+
+    private IEnumerator HitlagCoroutine(float timeScale, float duration)
+    {
+        isHitlagging = true;
+        float originalTimeScale = Time.timeScale;
+        Time.timeScale = timeScale;
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime; // 关键：不受TimeScale影响的等待
+            yield return null;
+        }
+
+        Time.timeScale = originalTimeScale;
+        isHitlagging = false;
     }
 }
