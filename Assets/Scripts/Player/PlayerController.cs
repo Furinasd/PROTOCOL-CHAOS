@@ -1,74 +1,199 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
+using System.Collections;
 
-[RequireComponent(typeof(Rigidbody))]
-public class PlayerController : MonoBehaviour
+[RequireComponent(typeof(CharacterController))]
+public class DemoPlayerController : MonoBehaviour
 {
-    public bool IsJumping { get; private set; }
-    public bool IsDodging { get; private set; } // 下蹲或侧滑
+    // 兼容原版的属性，供 PlayerCombatReceiver 判定
+    public bool IsJumping => currentState == PlayerState.Jumping || (velocity.y > 0 && !cc.isGrounded);
+    public bool IsDodging => currentState == PlayerState.Dashing;
 
-    [Header("Movement Settings")]
-    public float jumpForce = 7f;
-    private Rigidbody rb;
+    [Header("🎯 状态系统 (FSM)")]
+    public PlayerState currentState = PlayerState.Normal;
 
-    [Header("Dodge Settings")]
-    public float dodgeDuration = 0.5f;
-    private float dodgeTimer = 0f;
+    [Header("🏃 基础移动 (Movement)")]
+    public float moveSpeed = 8f;
+    public float smoothRotationTime = 0.1f;
+    private float currentVelocity;
+    
+    [Header("🦘 极致跳跃手感 (Advanced Jump)")]
+    public float jumpHeight = 2.5f;
+    public float gravity = -25f;
+    public float fallMultiplier = 2.0f; // 下落时重力加倍，摆脱"气球感"
+    
+    // ACT 手感核心：容错机制
+    private float coyoteTime = 0.15f;    
+    private float coyoteTimeCounter;
+    private float jumpBufferTime = 0.15f; 
+    private float jumpBufferCounter;
 
-    private void Awake()
+    [Header("💨 空间规避 (Dash)")]
+    public float dashSpeed = 20f;
+    public float dashDuration = 0.2f; // 你在原版也是类似于0.2~0.5s的判定时间
+    public float dashCooldown = 0.5f;
+    private float lastDashTime = -10f;
+
+    // 底层组件
+    private CharacterController cc;
+    private Vector3 velocity; // 垂直方向的速度累加
+    private Transform cam;    // 必须关联主相机，实现视角的绝对相对移动
+
+    // 状态机枚举
+    public enum PlayerState { Normal, Jumping, Dashing, Hitlag }
+
+    private void Start()
     {
-        rb = GetComponent<Rigidbody>();
+        cc = GetComponent<CharacterController>();
+        if (Camera.main != null) cam = Camera.main.transform;
     }
 
     private void Update()
     {
-        // 跳跃 (Space) 规避下段横扫
-        if (Input.GetKeyDown(KeyCode.Space) && !IsJumping && !IsDodging)
-        {
-            Jump();
-        }
+        if (Keyboard.current == null) return;
 
-        // 下蹲/侧滑 (Shift) 规避上段重砸
-        if (Input.GetKeyDown(KeyCode.LeftShift) && !IsJumping && !IsDodging)
+        // 核心状态机路由
+        switch (currentState)
         {
-            StartDodge();
-        }
-
-        if (IsDodging)
-        {
-            dodgeTimer -= Time.deltaTime;
-            if (dodgeTimer <= 0f)
-            {
-                EndDodge();
-            }
+            case PlayerState.Normal:
+            case PlayerState.Jumping:
+                HandleMovement();       // 位移与朝向
+                HandleJump();           // 跳跃与重力
+                HandleDash();           // 冲刺/侧滑
+                break;
+            case PlayerState.Dashing:
+                // Dash 期间剥夺控制权，仅执行 Dash 位移
+                break;
+            case PlayerState.Hitlag:
+                // 顿帧或硬直期间，冻结移动，仅应用重力
+                ApplyGravityOnly();
+                break;
         }
     }
 
-    private void Jump()
+    #region 移动与 3C 手感 (Movement & Gravity)
+    private void HandleMovement()
     {
-        IsJumping = true;
-        if (rb != null) rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        float horizontal = Keyboard.current.dKey.ReadValue() - Keyboard.current.aKey.ReadValue();
+        float vertical = Keyboard.current.wKey.ReadValue() - Keyboard.current.sKey.ReadValue();
+        Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
+
+        if (direction.magnitude >= 0.1f)
+        {
+            // 基于相机视角的移动转向
+            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            if (cam != null) targetAngle += cam.eulerAngles.y;
+
+            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref currentVelocity, smoothRotationTime);
+            transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+            cc.Move(moveDir * moveSpeed * Time.deltaTime);
+        }
     }
 
-    private void StartDodge()
+    private void HandleJump()
     {
-        IsDodging = true;
-        dodgeTimer = dodgeDuration;
-        // 缩小 Collider 高度以规避上段攻击
-        transform.localScale = new Vector3(1, 0.5f, 1);
+        // 土狼时间 (Coyote Time)：如果刚离开地面，依然给玩家保留短暂的跳跃权利
+        if (cc.isGrounded) { coyoteTimeCounter = coyoteTime; }
+        else { coyoteTimeCounter -= Time.deltaTime; }
+
+        // 跳跃缓存 (Jump Buffer)：提前按下空格，落地瞬间自动起跳
+        if (Keyboard.current.spaceKey.wasPressedThisFrame) { jumpBufferCounter = jumpBufferTime; }
+        else { jumpBufferCounter -= Time.deltaTime; }
+
+        // 垂直速度重置
+        if (cc.isGrounded && velocity.y < 0)
+        {
+            velocity.y = -2f; // 贴地力，防止下坡起飞
+            if (currentState == PlayerState.Jumping) currentState = PlayerState.Normal;
+        }
+
+        // 触发跳跃
+        if (coyoteTimeCounter > 0f && jumpBufferCounter > 0f)
+        {
+            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            jumpBufferCounter = 0f;
+            coyoteTimeCounter = 0f;
+            currentState = PlayerState.Jumping;
+        }
+
+        // Mario 下落曲线：如果正在下落，或者提前松开跳跃键，重力加倍 (手感极其干净利落)
+        float currentGravity = gravity;
+        if (velocity.y < 0 || (velocity.y > 0 && !Keyboard.current.spaceKey.isPressed))
+        {
+            currentGravity *= fallMultiplier; 
+        }
+
+        velocity.y += currentGravity * Time.deltaTime;
+        cc.Move(new Vector3(0, velocity.y, 0) * Time.deltaTime); // 单独执行垂直位移
     }
 
-    private void EndDodge()
+    private void ApplyGravityOnly()
     {
-        IsDodging = false;
+        if (cc.isGrounded && velocity.y < 0) { velocity.y = -2f; }
+        velocity.y += gravity * fallMultiplier * Time.deltaTime;
+        cc.Move(new Vector3(0, velocity.y, 0) * Time.deltaTime);
+    }
+    #endregion
+
+    #region 空间规避与状态控制 (Dash & States)
+    private void HandleDash()
+    {
+        // 左 Shift 键触发空间规避
+        if (Keyboard.current.leftShiftKey.wasPressedThisFrame && Time.time >= lastDashTime + dashCooldown)
+        {
+            StartCoroutine(DashRoutine());
+        }
+    }
+
+    private IEnumerator DashRoutine()
+    {
+        currentState = PlayerState.Dashing;
+        lastDashTime = Time.time;
+        velocity.y = 0f; // 冲刺期间不受重力影响
+
+        // 调整视觉缩放作为反馈
+        transform.localScale = new Vector3(1f, 0.5f, 1f);
+
+        Vector3 dashDir = transform.forward; // 默认向前冲刺
+        // 如果有输入，则朝输入方向冲刺
+        float h = Keyboard.current.dKey.ReadValue() - Keyboard.current.aKey.ReadValue();
+        float v = Keyboard.current.wKey.ReadValue() - Keyboard.current.sKey.ReadValue();
+        if (h != 0 || v != 0)
+        {
+             dashDir = (Quaternion.Euler(0f, cam != null ? cam.eulerAngles.y : 0f, 0f) * new Vector3(h, 0, v)).normalized;
+             transform.rotation = Quaternion.LookRotation(dashDir);
+        }
+
+        float startTime = Time.time;
+        while (Time.time < startTime + dashDuration)
+        {
+            cc.Move(dashDir * dashSpeed * Time.deltaTime);
+            yield return null;
+        }
+
+        // 恢复视觉缩放
         transform.localScale = Vector3.one;
+        currentState = PlayerState.Normal;
     }
 
-    private void OnCollisionEnter(Collision collision)
+    // 提供给外部(如被怪物击中或触发完美格挡)的接口
+    public void EnterHitlag(float duration)
     {
-        // 简单的落地检测，实际项目中建议用射线检测
-        if (collision.gameObject.CompareTag("Ground"))
+        if (gameObject.activeInHierarchy)
         {
-            IsJumping = false;
+            StartCoroutine(HitlagRoutine(duration));
         }
     }
+
+    private IEnumerator HitlagRoutine(float duration)
+    {
+        PlayerState previousState = currentState;
+        currentState = PlayerState.Hitlag;
+        // 这里后续会配合 Time.timeScale 做出极其夸张的顿帧停顿感
+        yield return new WaitForSecondsRealtime(duration); 
+        currentState = previousState;
+    }
+    #endregion
 }

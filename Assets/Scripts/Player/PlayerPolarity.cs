@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public enum PolarityColor
 {
@@ -26,7 +27,7 @@ public class PlayerPolarity : MonoBehaviour
     private void Update()
     {
         // 监听右键切换形态
-        if (Input.GetMouseButtonDown(1))
+        if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
         {
             SwitchPolarity();
         }

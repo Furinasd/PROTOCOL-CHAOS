@@ -35,8 +35,9 @@ public class CombatFeedbackManager : MonoBehaviour
         // 2. 触发屏幕震动
         if (enableScreenShake)
         {
-            // 之后可在场景内挂 Cinemachine Impulse Source
-            Debug.Log("【视听表现】触发 Cinemachine 剧烈画面震动 Impulse！");
+            // 使用 SendMessage 避免在某些项目中因为未引入 Assembly Definition Reference 导致的编译错误
+            SendMessage("GenerateImpulse", SendMessageOptions.DontRequireReceiver);
+            Debug.Log("【视听表现】已触发 Cinemachine 剧烈画面震动 Impulse！");
         }
     }
 

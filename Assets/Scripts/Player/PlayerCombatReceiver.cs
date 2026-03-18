@@ -1,14 +1,14 @@
-using UnityEngine;
+    using UnityEngine;
 
-[RequireComponent(typeof(PlayerController), typeof(PlayerPolarity))]
+[RequireComponent(typeof(DemoPlayerController), typeof(PlayerPolarity))]
 public class PlayerCombatReceiver : MonoBehaviour
 {
-    private PlayerController controller;
+    private DemoPlayerController controller;
     private PlayerPolarity polarity;
 
     private void Awake()
     {
-        controller = GetComponent<PlayerController>();
+        controller = GetComponent<DemoPlayerController>();
         polarity = GetComponent<PlayerPolarity>();
     }
 
