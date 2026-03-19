@@ -12,6 +12,7 @@ public class EnemyVisualController : MonoBehaviour
     public Material neutralMat;
     public Material blueGlowMat;
     public Material redGlowMat;
+    public Material purpleGlowMat; // 新增：紫色二连击预警
     public Material stunnedMat;
 
     private void Awake()
@@ -25,7 +26,10 @@ public class EnemyVisualController : MonoBehaviour
     /// </summary>
     public void GlowForTelegraph(Polarity polarity, float duration)
     {
-        Material targetMat = polarity == Polarity.Red ? redGlowMat : blueGlowMat;
+        Material targetMat = null;
+        if (polarity == Polarity.Red) targetMat = redGlowMat;
+        else if (polarity == Polarity.Blue) targetMat = blueGlowMat;
+        else if (polarity == Polarity.Neutral) targetMat = purpleGlowMat;
         
         if (targetMat == null)
         {

@@ -18,16 +18,28 @@ public class EnemyShapeMorpher : MonoBehaviour
     /// <summary>
     /// 执行攻击前摇的夸张形变 (由 EnemyAttackBrain 在进入 Telegraph 状态时调用)
     /// </summary>
-    public void MorphForTelegraph(float duration)
+    /// <param name="duration">前摇时长</param>
+    /// <param name="morphAxis">1: Y轴拉伸(重砸), 2: XZ轴扩宽(横扫), 3: 紫光爆发</param>
+    public void MorphForTelegraph(float duration, int morphType)
     {
-        // 杀掉上一个可能没播完的动画，防止冲突
         currentTween?.Kill(); 
+
+        Vector3 targetScale = originalScale;
         
-        // 沿 Y 轴拉伸 3 倍，SetEase(Ease.OutBack) 会自带极其高级的"果冻蓄力回弹感"！
-        currentTween = transform.DOScale(
-            new Vector3(originalScale.x, originalScale.y * 3f, originalScale.z), 
-            duration
-        ).SetEase(Ease.OutBack);
+        switch (morphType)
+        {
+            case 1: // 纵向重压 (Smash)
+                targetScale = new Vector3(originalScale.x * 1.2f, originalScale.y * 3f, originalScale.z * 1.2f);
+                break;
+            case 2: // 横向蓄力 (Sweep)
+                targetScale = new Vector3(originalScale.x * 3f, originalScale.y * 0.8f, originalScale.z * 1.5f);
+                break;
+            case 3: // 紫光爆发 (Full Scale)
+                targetScale = originalScale * 2.5f;
+                break;
+        }
+
+        currentTween = transform.DOScale(targetScale, duration).SetEase(Ease.OutBack);
     }
 
     /// <summary>

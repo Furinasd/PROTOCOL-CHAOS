@@ -1,165 +1,211 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using DG.Tweening;
 
 // ==========================================
 // Title: 玩家战斗受击处理器 (Player Combat Receiver)
 // Description: 处理玩家被怪物命中时的完整博弈逻辑。
-//              实现 IDamageable 接口，由 EnemyHitbox 直接调用 TakeDamage。
-//              包含：空间规避、同色吸收、异色受伤、完美弹刀四大判定轨道。
+//              包含：空间规避(闪避)、同色吸收、异色受伤、完美弹刀四大判定轨道。
 // ==========================================
 
-[RequireComponent(typeof(DemoPlayerController), typeof(PlayerPolarity))]
+[RequireComponent(typeof(DemoPlayerController), typeof(PlayerPolarity), typeof(PlayerEnergySystem))]
 public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 {
     private DemoPlayerController controller;
     private PlayerPolarity polarity;
+    private PlayerEnergySystem energySystem;
 
     [Header("❤️ 生存数值")]
     public float maxHP = 100f;
     public float currentHP = 100f;
 
-    [Header("⚡ 秩序能量 (Ultimate Gauge)")]
-    public float maxOrderEnergy = 100f;
-    public float currentOrderEnergy = 0f;
-    public float energyPerAbsorb = 25f;
-
     [Header("⚔️ 弹刀反伤参数")]
-    [Tooltip("完美弹刀成功对攻击来源造成的熵值反伤")]
     public float parryCounterPostureDamage = 50f;
+
+    // 状态标记
+    public bool isStandingOnAnomalyCore = false;
+    private float lastBlockInputTime = -10f;
+    private float blockWindow = 0.25f; // 左键格挡的有效判定持续时间
 
     private void Awake()
     {
         controller = GetComponent<DemoPlayerController>();
         polarity = GetComponent<PlayerPolarity>();
+        energySystem = GetComponent<PlayerEnergySystem>();
     }
 
     private void Update()
     {
-        // 兼容新版 Input System 的处决按键检测
+        // 核心：监听左键格挡输入
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            lastBlockInputTime = Time.time;
+            Debug.Log("<color=white>🛡️ 玩家进入格挡姿态...</color>");
+        }
+
         if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
         {
             TryExecuteEnemy();
         }
     }
 
-    // ══════════════════════════════════════════════════
-    // 核心受击博弈方程（IDamageable 接口实现）
-    // 这是整个游戏趣味性的灵魂，请勿轻易修改逻辑顺序！
-    // ══════════════════════════════════════════════════
     public bool TakeDamage(AttackData attack)
     {
-        // 可选的基础检测：如果已死亡，拒绝继续结算
         if (currentHP <= 0) return false;
 
-        // 从旧枚举桥接到新协议枚举
         Polarity playerPolarity = PolarityBridge.FromPolarityColor(polarity.CurrentColor);
 
         // ────────────────────────────────
-        // 轨道一：完美弹刀判定 (最高优先级)
-        // 条件：正处于 Parry 窗口期 && 异色攻击（同色无法消除）
+        // 轨道〇：空间规避 (闪避无敌与完美闪避)
         // ────────────────────────────────
-        if (polarity.IsParryWindow && attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral)
+        if (controller.IsDodging || controller.IsJumping)
         {
-            Debug.Log("<color=orange>✨ 极性湮灭！完美弹刀！时间凝滞，反震攻击者！</color>");
-
-            // 效果1：调用反馈中枢（顿帧+强震动）
-            if (CombatFeedbackManager.Instance != null)
-                CombatFeedbackManager.Instance.TriggerParryFeedback();
-
-            // 效果2：对攻击来源施加熵值反伤
-            if (attack.sourceObject != null)
+            // 【系统对齐】：同时检测冲刺瞬间与起跳瞬间产生的无敌回能
+            float timeSinceDash = Time.time - controller.LastDashTime;
+            float timeSinceJump = Time.time - controller.LastJumpTime;
+            
+            // 判定起跳或冲刺前 0.25 秒内属于完美规避
+            if (timeSinceDash <= 0.25f || timeSinceJump <= 0.25f)
             {
-                EnemyPosture sourcePosture = attack.sourceObject.GetComponent<EnemyPosture>();
-                if (sourcePosture != null)
-                {
-                    sourcePosture.AddPosture(parryCounterPostureDamage);
-                }
+                Debug.Log($"<color=white>💨 完美规避！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 能量 +2</color>");
+                energySystem.AddEnergy(2); 
+                
+                if (CombatFeedbackManager.Instance != null)
+                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
             }
-
-            // 效果3：能量小奖励（弹刀有技巧，稍给一点）
-            GainOrderEnergy(energyPerAbsorb * 0.5f);
-
-            // 反馈给攻击者：你被完美弹了，自己进入硬直
-            return true;
-        }
-
-        // ────────────────────────────────
-        // 轨道二：同色吸收 (稳妥解法)
-        // 条件：攻击极性与玩家当前极性相同
-        // ────────────────────────────────
-        if (attack.polarity == playerPolarity)
-        {
-            Debug.Log("<color=cyan>⚡ 秩序包容！同色攻击被吸收，能量充能！</color>");
-
-            // 效果1：充能秩序能量
-            GainOrderEnergy(energyPerAbsorb);
-
-            // 效果2：物理击退（保持存在感，但不扣血）
-            ApplyKnockback(attack.sourcePosition);
-
+            else
+            {
+                Debug.Log("<color=grey>💨 空间规避成功。</color>");
+            }
             return false;
         }
 
         // ────────────────────────────────
-        // 轨道三：异色受伤 (博弈失败)
-        // 条件：攻击极性不同 && 没有弹刀 → 全额受伤
+        // 轨道一：完美弹刀判定 (左键点击 + 异色攻击)
         // ────────────────────────────────
-        Debug.Log("<color=red>🩸 混沌入侵！极性不符，受到全额伤害！</color>");
+        bool isBlocking = (Time.time - lastBlockInputTime) <= blockWindow;
+        if (isBlocking && attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral)
+        {
+            int cost = isStandingOnAnomalyCore ? 0 : 2; // 弹刀消耗改为 2 格！高光区保持 0 消耗。
+
+            if (energySystem.TryConsumeEnergy(cost))
+            {
+                Debug.Log("<color=orange>✨ 极性湮灭！完美弹刀！</color>");
+
+                if (CombatFeedbackManager.Instance != null)
+                    CombatFeedbackManager.Instance.TriggerParryFeedback();
+
+                if (attack.sourceObject != null)
+                {
+                    EnemyPosture sourcePosture = attack.sourceObject.GetComponent<EnemyPosture>();
+                    if (sourcePosture != null)
+                    {
+                        float finalDamage = parryCounterPostureDamage * (isStandingOnAnomalyCore ? 3f : 1f);
+                        sourcePosture.AddPosture(finalDamage);
+                    }
+                }
+
+                // 踩在高光区完美弹刀触发全屏净化！
+                if (isStandingOnAnomalyCore)
+                {
+                    Debug.Log("<color=yellow>🌟 异常源核心区逆转！全场污染净化！</color>");
+                    ChaosPuddle[] puddles = Object.FindObjectsByType<ChaosPuddle>(FindObjectsSortMode.None);
+                    foreach(var p in puddles) p.Purify();
+                }
+
+                return true;
+            }
+            else
+            {
+                Debug.Log("<color=red>🩸 能量不足！强行越级弹刀导致防御溃散，受到全额惩罚！</color>");
+                currentHP -= attack.damage;
+                
+                // 强化惩罚反馈：强震动 + 明显的受击顿帧
+                if (CombatFeedbackManager.Instance != null)
+                {
+                    CombatFeedbackManager.Instance.TriggerDamageFeedback();
+                    // 额外给一个特大震动，代表“破盾”
+                    transform.DOShakePosition(0.4f, 0.5f, 20, 90, false, true);
+                }
+                
+                controller.EnterHitlag(0.6f); // 极大的防守溃散硬直惩罚
+                return false;
+            }
+        }
+
+        // ────────────────────────────────
+        // 轨道二：同色吸收 (稳妥解法)
+        // ────────────────────────────────
+        if (attack.polarity == playerPolarity)
+        {
+            Debug.Log("<color=cyan>⚡ 秩序包容！同色攻击被吸收。代价：产生物理击退与暂时减速。</color>");
+            energySystem.AddEnergy(1); // 同色吸收奖励 1 格能量
+            
+            // 效果：击退 + 50% 减速 1.5 秒
+            ApplyKnockback(attack.sourcePosition);
+            controller.ApplySlowdown(1.5f, 0.5f); 
+            
+            return false;
+        }
+
+        // 诊断逻辑：为什么没触发弹刀？
+        if (isBlocking)
+        {
+            if (attack.polarity == playerPolarity) 
+                Debug.Log("<color=white>❕ 弹刀失败：同色攻击只能吸收，不能弹刀！请切换极性后再点击左键。</color>");
+            else if (attack.polarity == Polarity.Neutral)
+                Debug.Log("<color=purple>⚠️ 弹刀失败：无法格挡紫光危险技！只能闪避！</color>");
+        }
+        else if (attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral)
+        {
+             Debug.Log("<color=grey>🖱️ 弹刀失败：未在命中瞬间按下左键（格挡窗口 0.25s）。</color>");
+        }
+
+        Debug.Log("<color=red>🩸 混沌入侵！极性不符或闪避失败，受到判定伤害！</color>");
         currentHP -= attack.damage;
 
-        // 效果1：调用反馈中枢（短促顿帧+中等震动）
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
-        // 效果2：进入移动硬直（剥夺控制权）
         controller.EnterHitlag(0.2f);
 
         if (currentHP <= 0)
         {
-            Debug.Log("<color=red>💀 玩家死亡！</color>");
-            // TODO: 触发死亡表现（保留接口）
+            Debug.Log("<color=red>💀 玩家阵亡！正在重新加载场景...</color>");
+            
+            // 重要：重置全局物理状态，防止 TimeScale 永久卡在 0.05
+            Time.timeScale = 1f;
+            DOTween.KillAll(); 
+            
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         return false;
     }
 
-    // ──────────────────────────────────
-    // 辅助方法
-    // ──────────────────────────────────
-
-    private void GainOrderEnergy(float amount)
-    {
-        currentOrderEnergy = Mathf.Min(currentOrderEnergy + amount, maxOrderEnergy);
-        if (currentOrderEnergy >= maxOrderEnergy)
-        {
-            Debug.Log("🔥 秩序能量已满蓄！可发动大招！");
-        }
-    }
-
     private void ApplyKnockback(Vector3 attackerPos)
     {
-        // CharacterController 不使用 Rigidbody，通过 controller 接口实现击退
         Vector3 knockbackDir = (transform.position - attackerPos).normalized;
         knockbackDir.y = 0;
-        // 暂用调试输出占位，后续在 DemoPlayerController 中扩展 AddExternalForce 接口
-        Debug.Log($"[PlayerCombatReceiver] 施加击退方向: {knockbackDir}");
+        
+        // 调用真实的物理击退接口
+        controller.AddKnockback(knockbackDir, 12f);
+        Debug.Log($"[PlayerCombatReceiver] 物理击退启动方: {knockbackDir}");
     }
 
     private void TryExecuteEnemy()
     {
-        // 球形范围扫描前方处于可处决状态的敌人
         Collider[] hits = Physics.OverlapSphere(transform.position, 3f);
         foreach (var hit in hits)
         {
             EnemyPosture target = hit.GetComponent<EnemyPosture>();
             if (target != null && target.IsBroken)
             {
-                Debug.Log("💠 [处决] 玩家白盒爆发网格线，切割空间！");
-                // 触发宕机处决震动反馈
+                Debug.Log("💠 [终结] Chaos Cleansed. 玩家白盒爆发网格线，彻底切割空间！");
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerAnnihilationFeedback();
 
-                // 销毁目标（稍作延迟保留震动视觉），后续替换为特效爆炸逻辑
                 Destroy(hit.gameObject, 0.5f);
                 break;
             }

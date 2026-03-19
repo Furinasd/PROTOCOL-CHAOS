@@ -13,6 +13,7 @@ public class DemoPlayerController : MonoBehaviour
 
     [Header("🏃 基础移动 (Movement)")]
     public float moveSpeed = 8f;
+    private float currentMoveSpeedMultiplier = 1f; // 用于吸收伤害时的减速惩罚
     public float smoothRotationTime = 0.1f;
     private float currentVelocity;
     
@@ -20,6 +21,8 @@ public class DemoPlayerController : MonoBehaviour
     public float jumpHeight = 2.5f;
     public float gravity = -25f;
     public float fallMultiplier = 2.0f; // 下落时重力加倍，摆脱"气球感"
+    private float lastJumpTime = -10f;
+    public float LastJumpTime => lastJumpTime;
     
     // ACT 手感核心：容错机制
     private float coyoteTime = 0.15f;    
@@ -32,6 +35,7 @@ public class DemoPlayerController : MonoBehaviour
     public float dashDuration = 0.2f; // 你在原版也是类似于0.2~0.5s的判定时间
     public float dashCooldown = 0.5f;
     private float lastDashTime = -10f;
+    public float LastDashTime => lastDashTime; // 暴露给战斗核心用于完美闪避判定
 
     // 底层组件
     private CharacterController cc;
@@ -43,6 +47,10 @@ public class DemoPlayerController : MonoBehaviour
     public PlayerState currentState = PlayerState.Normal;
     private PlayerState previousStateBeforeHitlag = PlayerState.Normal;
     private Coroutine hitlagCoroutine;
+
+    // 击退系统变量
+    private Vector3 externalImpact; // 外部冲击力
+    public float knockbackResistance = 5f; // 阻力，数值越大停止越快
 
     private void Start()
     {
@@ -71,6 +79,13 @@ public class DemoPlayerController : MonoBehaviour
                 ApplyGravityOnly();
                 break;
         }
+
+        // 在 Normal 状态下也需要应用外部力 (如推开)
+        if (currentState != PlayerState.Hitlag && externalImpact.magnitude > 0.2f)
+        {
+            cc.Move(externalImpact * Time.deltaTime);
+            externalImpact = Vector3.Lerp(externalImpact, Vector3.zero, knockbackResistance * Time.deltaTime);
+        }
     }
 
     #region 移动与 3C 手感 (Movement & Gravity)
@@ -90,8 +105,24 @@ public class DemoPlayerController : MonoBehaviour
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-            cc.Move(moveDir * moveSpeed * Time.deltaTime);
+            cc.Move(moveDir * moveSpeed * currentMoveSpeedMultiplier * Time.deltaTime);
         }
+    }
+
+    /// <summary>
+    /// 提供给外部的临时减速接口 (如同色吸收时的惩罚)
+    /// </summary>
+    public void ApplySlowdown(float duration, float multiplier)
+    {
+        StopCoroutine("SlowdownRoutine");
+        StartCoroutine(SlowdownRoutine(duration, multiplier));
+    }
+
+    private IEnumerator SlowdownRoutine(float duration, float multiplier)
+    {
+        currentMoveSpeedMultiplier = multiplier;
+        yield return new WaitForSeconds(duration);
+        currentMoveSpeedMultiplier = 1f;
     }
 
     private void HandleJump()
@@ -117,6 +148,7 @@ public class DemoPlayerController : MonoBehaviour
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             jumpBufferCounter = 0f;
             coyoteTimeCounter = 0f;
+            lastJumpTime = Time.time;
             currentState = PlayerState.Jumping;
         }
 
@@ -135,7 +167,25 @@ public class DemoPlayerController : MonoBehaviour
     {
         if (cc.isGrounded && velocity.y < 0) { velocity.y = -2f; }
         velocity.y += gravity * fallMultiplier * Time.deltaTime;
+        
+        // 应用外部冲击力 (Impact)
+        if (externalImpact.magnitude > 0.2f)
+        {
+            cc.Move(externalImpact * Time.deltaTime);
+            externalImpact = Vector3.Lerp(externalImpact, Vector3.zero, knockbackResistance * Time.deltaTime);
+        }
+
         cc.Move(new Vector3(0, velocity.y, 0) * Time.deltaTime);
+    }
+
+    /// <summary>
+    /// 核心：应用外部击退力
+    /// </summary>
+    public void AddKnockback(Vector3 direction, float force)
+    {
+        direction.Normalize();
+        if (direction.y < 0) direction.y = -direction.y; // 防止向地下击退
+        externalImpact += direction * force;
     }
     #endregion
 
@@ -171,11 +221,14 @@ public class DemoPlayerController : MonoBehaviour
         float startTime = Time.time;
         while (Time.time < startTime + dashDuration)
         {
+            // 增加安全检测：如果冲刺中途发现下方彻底悬空（且不是在跳跃高度内），可以考虑中断或增加吸附
+            // 但最核心的修复是确保 Move 的位移在物理帧内是连续的
             cc.Move(dashDir * dashSpeed * Time.deltaTime);
             yield return null;
         }
 
-        // 恢复视觉缩放
+        // 冲刺结束后的安全重置
+        velocity.y = -2f; // 强制给一个向下贴地力，防止冲刺由于斜坡导致的“飞出”
         transform.localScale = Vector3.one;
         currentState = PlayerState.Normal;
     }

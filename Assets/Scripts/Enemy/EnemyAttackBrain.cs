@@ -11,10 +11,8 @@ public enum EnemyState
 }
 
 // ==========================================
-// Title: 敌人攻击大脑 (Enemy Attack Brain)
-// Description: 控制敌人的战斗节奏——何时发动随机攻击，并监听 EnemyPosture 进入宕机。
-//              协同调用 EnemyVisualController 和 EnemyShapeMorpher 进行演出。
-//              职责清晰：只做"决策与时序"，不负责视觉或数值结算。
+// Title: 敌人攻击大脑 (Enemy Attack Brain) - Phase 5 强化版
+// Description: 包含：1. 距离感知的 AI 出招权重；2. 快慢刀节奏欺骗；3. 残血紫光二连击。
 // ==========================================
 
 [RequireComponent(typeof(EnemyVisualController), typeof(EnemyShapeMorpher), typeof(EnemyPosture))]
@@ -23,15 +21,14 @@ public class EnemyAttackBrain : MonoBehaviour
     public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
 
     [Header("Attack Default Settings")]
-    [Tooltip("每次攻击之间的冷却时间（秒）")]
     public float attackCooldown = 3f;
     private float cooldownTimer;
 
-    [Header("⚔️ 攻击节奏参数")]
+    [Header("⚔️ 基础节奏参数")]
     public float telegraphDuration = 0.6f;
     public float attackActiveDuration = 0.25f;
 
-    [Header("🎯 判定盒引用 (挂载在子物体)")]
+    [Header("🎯 判定盒引用")]
     public EnemyHitbox redSweepHitbox;
     public EnemyHitbox blueSmashHitbox;
 
@@ -42,15 +39,20 @@ public class EnemyAttackBrain : MonoBehaviour
     private EnemyVisualController visualController;
     private EnemyShapeMorpher shapeMorpher;
     private EnemyPosture posture;
+    private EnemyTracker tracker;
+    private Transform playerTransform;
 
     private void Awake()
     {
         visualController = GetComponent<EnemyVisualController>();
         shapeMorpher = GetComponent<EnemyShapeMorpher>();
         posture = GetComponent<EnemyPosture>();
+        tracker = GetComponent<EnemyTracker>();
         cooldownTimer = attackCooldown;
 
-        // 监听宕机事件，立刻切换状态
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null) playerTransform = player.transform;
+
         if (posture != null)
         {
             posture.OnPostureBroken += OnPostureBroken;
@@ -70,67 +72,135 @@ public class EnemyAttackBrain : MonoBehaviour
         cooldownTimer -= Time.deltaTime;
         if (cooldownTimer <= 0f)
         {
-            InitiateRandomAttack();
+            InitiateAIAction();
             cooldownTimer = attackCooldown;
         }
     }
 
-    private void InitiateRandomAttack()
+    private void InitiateAIAction()
     {
-        CurrentState = EnemyState.Telegraphing;
+        if (CurrentState == EnemyState.Stunned) return;
 
-        Polarity attackPolarity = Random.value > 0.5f ? Polarity.Red : Polarity.Blue;
+        // 【机制三：残血紫光博弈】
+        if (posture.HealthPercentage < 0.3f && Random.value < 0.4f)
+        {
+            StartCoroutine(PurpleBluffRoutine());
+            return;
+        }
+
+        // 【机制一：距离感知权重】
+        float dist = playerTransform != null ? Vector3.Distance(transform.position, playerTransform.position) : 10f;
+        Polarity attackPolarity;
+        
+        if (dist > 5f)
+        {
+            // 远距离：80% 几率红光突刺
+            attackPolarity = Random.value < 0.8f ? Polarity.Red : Polarity.Blue;
+        }
+        else
+        {
+            // 近距离：80% 几率蓝光重砸
+            attackPolarity = Random.value < 0.8f ? Polarity.Blue : Polarity.Red;
+        }
+
+        // 【机制二：快慢刀变体】
+        bool isSlowAttack = Random.value < 0.3f;
+        float finalTelegraph = isSlowAttack ? telegraphDuration + 0.3f : telegraphDuration;
+
+        CurrentState = EnemyState.Telegraphing;
         EnemyHitbox selectedHitbox = attackPolarity == Polarity.Red ? redSweepHitbox : blueSmashHitbox;
 
-        StartCoroutine(AttackRoutine(attackPolarity, selectedHitbox, OnAttackEnd));
+        StartCoroutine(AttackRoutine(attackPolarity, selectedHitbox, finalTelegraph, OnAttackEnd));
     }
 
-    private IEnumerator AttackRoutine(Polarity attackPolarity, EnemyHitbox targetHitbox, System.Action onComplete)
+    private IEnumerator AttackRoutine(Polarity attackPolarity, EnemyHitbox targetHitbox, float duration, System.Action onComplete)
     {
-        // ── 1. 前摇：形变夸张拉伸与发光预警 ──
-        visualController.GlowForTelegraph(attackPolarity, telegraphDuration);
-        shapeMorpher.MorphForTelegraph(telegraphDuration);
+        visualController.GlowForTelegraph(attackPolarity, duration);
+        
+        // 【视觉联动】：根据极性区分形变类型
+        int morphType = (attackPolarity == Polarity.Red) ? 2 : 1;
+        shapeMorpher.MorphForTelegraph(duration, morphType);
 
-        yield return new WaitForSeconds(telegraphDuration);
+        if (tracker != null)
+        {
+            float turnSpeed = attackPolarity == Polarity.Blue ? 2f : 10f;
+            tracker.StartTracking(turnSpeed);
+        }
 
-        if (CurrentState == EnemyState.Stunned) yield break; // 防御性判断：可能在此期间被打断
+        float lockInTime = 0.15f;
+        float trackDuration = Mathf.Max(0f, duration - lockInTime);
+        yield return new WaitForSeconds(trackDuration);
 
-        // ── 2. 攻击判定期：瞬间将形变弹回产生打击顿挫感，激活判定区 ──
+        if (tracker != null) tracker.StopTracking();
+        yield return new WaitForSeconds(lockInTime);
+
+        if (CurrentState == EnemyState.Stunned) yield break;
+
+        // 攻击瞬间
         CurrentState = EnemyState.Attacking;
-        shapeMorpher.ResetShape(0.05f); // 瞬间发力弹回
+        shapeMorpher.ResetShape(0.05f);
 
         if (targetHitbox != null)
         {
-            AttackData attackData = new AttackData
-            {
+            AttackData data = new AttackData {
                 damage = baseDamage,
                 postureDamage = basePostureDamage,
                 polarity = attackPolarity,
                 sourcePosition = transform.position,
                 sourceObject = gameObject
             };
-            targetHitbox.ActivateHitbox(attackData);
-        }
-        else
-        {
-            Debug.LogError($"[EnemyBrain] {attackPolarity} 对应的 Hitbox 引用为空，无法产生伤害判定！");
+            targetHitbox.ActivateHitbox(data);
         }
 
         yield return new WaitForSeconds(attackActiveDuration);
 
-        if (CurrentState == EnemyState.Stunned) 
+        if (CurrentState != EnemyState.Stunned)
         {
             if (targetHitbox != null) targetHitbox.DeactivateHitbox();
-            yield break; // 攻击期间如果挂了就直接退出
+            visualController.ResetVisual();
+            CurrentState = EnemyState.Recovering;
         }
 
-        // ── 3. 后摇：关闭判定盒，光效熄灭 ──
-        CurrentState = EnemyState.Recovering;
-        if (targetHitbox != null) targetHitbox.DeactivateHitbox();
-        
-        visualController.ResetVisual();
-
         onComplete?.Invoke();
+    }
+
+    private IEnumerator PurpleBluffRoutine()
+    {
+        CurrentState = EnemyState.Telegraphing;
+        Debug.Log("<color=purple>【狂暴】Boss 进入紫光预警！绝对禁盾二连击！</color>");
+
+        // 预警：紫色光效
+        visualController.GlowForTelegraph(Polarity.Neutral, telegraphDuration);
+        shapeMorpher.MorphForTelegraph(telegraphDuration, 3); // 紫色使用爆发形变
+        
+        if (tracker != null) tracker.StartTracking(15f); // 极速追踪
+        yield return new WaitForSeconds(telegraphDuration);
+        if (tracker != null) tracker.StopTracking();
+
+        if (CurrentState == EnemyState.Stunned) yield break;
+
+        // 第一击：红光极速横扫 (无视防御属性)
+        CurrentState = EnemyState.Attacking;
+        AttackData pd = new AttackData {
+            damage = baseDamage * 0.7f,
+            postureDamage = 0, // 紫光击不造成爆槽，只伤血
+            polarity = Polarity.Neutral, // 绝对禁盾
+            sourcePosition = transform.position,
+            sourceObject = gameObject
+        };
+        
+        redSweepHitbox.ActivateHitbox(pd);
+        yield return new WaitForSeconds(0.15f);
+        redSweepHitbox.DeactivateHitbox();
+
+        // 瞬间衔接第二击：蓝光重砸
+        blueSmashHitbox.ActivateHitbox(pd);
+        yield return new WaitForSeconds(0.15f);
+        blueSmashHitbox.DeactivateHitbox();
+
+        visualController.ResetVisual();
+        shapeMorpher.ResetShape(0.1f);
+        CurrentState = EnemyState.Idle;
     }
 
     private void OnAttackEnd()
@@ -144,8 +214,10 @@ public class EnemyAttackBrain : MonoBehaviour
     private void OnPostureBroken()
     {
         CurrentState = EnemyState.Stunned;
-        Debug.Log("[EnemyBrain] 宕机！停止所有新的攻击行为，播放眩晕演出。");
+        StopAllCoroutines(); // 强行中断攻击流程
         visualController.SetStunnedVisual();
         shapeMorpher.ResetShape(0.1f);
+        if (redSweepHitbox) redSweepHitbox.DeactivateHitbox();
+        if (blueSmashHitbox) blueSmashHitbox.DeactivateHitbox();
     }
 }

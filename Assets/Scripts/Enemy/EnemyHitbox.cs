@@ -19,7 +19,7 @@ public class EnemyHitbox : MonoBehaviour
     private bool isActive = false;
 
     // 防止在同一次攻击动作中，对同一个目标造成多次伤害
-    private HashSet<Collider> alreadyHitTargets = new HashSet<Collider>();
+    private HashSet<IDamageable> alreadyHitComponents = new HashSet<IDamageable>();
 
     /// <summary>
     /// 激活判定盒（由 EnemyAttackBrain 在进入 Attacking 状态时调用）
@@ -28,7 +28,7 @@ public class EnemyHitbox : MonoBehaviour
     {
         currentAttackData = data;
         isActive = true;
-        alreadyHitTargets.Clear(); // 每次挥刀清空已命中列表
+        alreadyHitComponents.Clear(); // 每次挥刀清空已命中列表
     }
 
     /// <summary>
@@ -37,7 +37,7 @@ public class EnemyHitbox : MonoBehaviour
     public void DeactivateHitbox()
     {
         isActive = false;
-        alreadyHitTargets.Clear();
+        alreadyHitComponents.Clear();
     }
 
     private void Update()
@@ -58,58 +58,52 @@ public class EnemyHitbox : MonoBehaviour
 
         foreach (Collider hit in hits)
         {
-            // 如果这个目标在这一刀里已经挨过打了，直接跳过
-            if (alreadyHitTargets.Contains(hit)) continue;
-
             // 尝试获取玩家的受击接口
-            IDamageable damageable = hit.GetComponent<IDamageable>();
-            if (damageable != null)
+            IDamageable damageable = hit.GetComponentInParent<IDamageable>();
+            if (damageable == null) continue;
+
+            // 如果这个接口组件在这一刀里已经挨过打了，直接跳过
+            if (alreadyHitComponents.Contains(damageable)) continue;
+
+            // 记录为已命中接口
+            alreadyHitComponents.Add(damageable);
+
+            // 发送伤害数据包，玩家根据自身极性和状态进行博弈结算
+            currentAttackData.hitDirection = (hit.transform.position - transform.position).normalized;
+            
+            // 返回值 isPerfectParried 是玩家告诉怪物："我完美弹反了你的攻击！"
+            bool isPerfectParried = damageable.TakeDamage(currentAttackData);
+
+            if (isPerfectParried)
             {
-                // 记录为已命中
-                alreadyHitTargets.Add(hit);
+                Debug.Log("💥 怪物：我的攻击被极性湮灭弹回了！");
 
-                // 发送伤害数据包，玩家根据自身极性和状态进行博弈结算
-                currentAttackData.hitDirection = (hit.transform.position - transform.position).normalized;
-                
-                // 返回值 isPerfectParried 是玩家告诉怪物："我完美弹反了你的攻击！"
-                bool isPerfectParried = damageable.TakeDamage(currentAttackData);
-
-                if (isPerfectParried)
+                // 1. 调用系统全局反馈（强烈震动+顿帧）
+                if (CombatFeedbackManager.Instance != null)
                 {
-                    Debug.Log("💥 怪物：我的攻击被极性湮灭弹回了！");
+                    CombatFeedbackManager.Instance.TriggerParryFeedback();
+                }
 
-                    // 1. 调用系统全局反馈（强烈震动+顿帧）
-                    if (CombatFeedbackManager.Instance != null)
-                    {
-                        CombatFeedbackManager.Instance.TriggerParryFeedback();
-                    }
-
-                    // 2. 怪物遭到反噬：让其直接进入大硬直（通过打满 posture）
-                    // 顺位获取父级或自身的 EnemyPosture 进行制裁
-                    EnemyPosture posture = GetComponentInParent<EnemyPosture>();
-                    if (posture != null)
-                    {
-                        posture.AddPosture(9999f); 
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[EnemyHitbox] 弹刀成功，但未能找到怪物的 EnemyPosture 以触发晕眩！");
-                    }
+                // 2. 怪物遭到反噬：让其直接进入大硬直（通过打满 posture）
+                EnemyPosture posture = GetComponentInParent<EnemyPosture>();
+                if (posture != null)
+                {
+                    posture.AddPosture(posture.maxPosture); 
+                }
+                else
+                {
+                    Debug.LogWarning("[EnemyHitbox] 弹刀成功，但未能找到怪物的 EnemyPosture 以触发晕眩！");
                 }
             }
         }
     }
 
     // TD 专属：可视化辅助工具！
-    // 只有在 Editor 选中这个物体时，才会画出一个红色的半透明方块，极其方便调手感！
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = isActive ? new Color(1, 0, 0, 0.5f) : new Color(0, 1, 0, 0.2f); // 激活时变红，平时是绿色
-        
-        // 匹配当前物体的旋转和位移
+        Gizmos.color = isActive ? new Color(1, 0, 0, 0.5f) : new Color(0, 1, 0, 0.2f);
         Matrix4x4 rotationMatrix = Matrix4x4.TRS(transform.position, transform.rotation, transform.lossyScale);
         Gizmos.matrix = rotationMatrix;
-        
         Gizmos.DrawCube(hitboxCenterOffset, hitboxSize);
     }
 }

@@ -135,6 +135,7 @@ GameObject:
   - component: {fileID: 215896753}
   - component: {fileID: 215896752}
   - component: {fileID: 215896759}
+  - component: {fileID: 215896760}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Untagged
@@ -187,6 +188,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyPosture
   maxPosture: 100
   currentPosture: 0
+  maxHP: 200
+  currentHP: 200
 --- !u!23 &215896755
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -297,7 +300,20 @@ MonoBehaviour:
   neutralMat: {fileID: 2100000, guid: f5fd9b441a57d8e439e015a0f8a861ab, type: 2}
   blueGlowMat: {fileID: 2100000, guid: ec2eb10934f1039449fa2a288a2a582f, type: 2}
   redGlowMat: {fileID: 2100000, guid: b760250efc8676142ad55b264576b890, type: 2}
+  purpleGlowMat: {fileID: 10301, guid: 0000000000000000f000000000000000, type: 0}
   stunnedMat: {fileID: 2100000, guid: 33dad3c4027da4b498881ab3c3171419, type: 2}
+--- !u!114 &215896760
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 215896751}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: acedd6a4756e7cd44a012bef69bbf3b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyTracker
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -1025,7 +1041,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
   hitboxCenterOffset: {x: 0, y: 0, z: 0}
-  hitboxSize: {x: 4, y: 4, z: 4}
+  hitboxSize: {x: 20, y: 20, z: 20}
   targetLayer:
     serializedVersion: 2
     m_Bits: 1
@@ -1276,7 +1292,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
   hitboxCenterOffset: {x: 0, y: 0, z: 0}
-  hitboxSize: {x: 4, y: 4, z: 4}
+  hitboxSize: {x: 20, y: 20, z: 20}
   targetLayer:
     serializedVersion: 2
     m_Bits: 1
@@ -1312,6 +1328,7 @@ GameObject:
   - component: {fileID: 2007910184}
   - component: {fileID: 2007910183}
   - component: {fileID: 2007910191}
+  - component: {fileID: 2007910192}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -1333,10 +1350,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerCombatReceiver
   maxHP: 100
   currentHP: 100
-  maxOrderEnergy: 100
-  currentOrderEnergy: 0
-  energyPerAbsorb: 25
   parryCounterPostureDamage: 50
+  isStandingOnAnomalyCore: 0
 --- !u!114 &2007910184
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1358,6 +1373,7 @@ MonoBehaviour:
   dashDuration: 0.2
   dashCooldown: 0.5
   currentState: 0
+  knockbackResistance: 5
 --- !u!114 &2007910185
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1516,6 +1532,20 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &2007910192
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2007910182}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f103ff43cdf55ca4a82e986d7c89e690, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerEnergySystem
+  maxEnergyGrids: 3
+  currentEnergyGrids: 0
 --- !u!1 &2054618962
 GameObject:
   m_ObjectHideFlags: 0
