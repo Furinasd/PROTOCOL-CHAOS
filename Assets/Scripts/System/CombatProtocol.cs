@@ -37,8 +37,11 @@ public struct AttackData
     /// <summary>攻击的极性：决定"同色吸收"或"异色受伤"</summary>
     public Polarity polarity;
     
-    /// <summary>攻击来源的世界坐标，用于计算击退方向</summary>
+    /// <summary>攻击来源的世界坐标，用于计算击退</summary>
     public Vector3 sourcePosition;
+    
+    /// <summary>精确击飞方向（标准化向量），由判定器计算产生</summary>
+    public Vector3 hitDirection;
     
     /// <summary>攻击来源对象，用于弹刀成功后对攻击者施加反馈</summary>
     public GameObject sourceObject;

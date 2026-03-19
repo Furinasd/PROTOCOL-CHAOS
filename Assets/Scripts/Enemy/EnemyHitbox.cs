@@ -1,59 +1,115 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 // ==========================================
-// Title: 敌人攻击判定盒 (Enemy Hitbox)
-// Description: 挂载在怪物攻击期间动态生成的判定碰撞体上。
-//              当玩家碰触此触发器，自动向玩家派发 AttackData 数据包。
-//              玩家身上的 PlayerCombatReceiver 实现 IDamageable 接口，负责处理后续博弈逻辑。
+// Title: 敌方纯代码伤害判定盒 (OverlapBox 方案)
+// Author: 白糖 & 精灵小姐 (Refactored by TD)
+// Description: 脱离物理引擎黑盒，实现完全由状态机驱动的精准打击判定。
+// 附带防重复击中(HashSet)与可视化调试(Gizmos)。
 // ==========================================
-
-[RequireComponent(typeof(Collider))]
 public class EnemyHitbox : MonoBehaviour
 {
-    [Header("▶ 攻击数据 (由 EnemyShapeMorpher 或 EnemyCombatEntity 填充)")]
-    public Polarity attackPolarity = Polarity.Red;
-    public float damage = 10f;
-    public float postureDamage = 20f;
-    
-    [Header("空间高度判定 (用于玩家闪避校验)")]
-    public bool IsLowAttack;  // 下段横扫：玩家跳跃可无视
-    public bool IsHighAttack; // 上段重砸：玩家下蹲/冲刺可无视
-    
-    [Header("来源引用 (向旧接口兼容)")]
-    [Tooltip("若不为空，弹刀成功后反向打给怪物的熵值伤害将通过此引用传递")]
-    public EnemyPosture OwnerPosture; // 保留：PlayerCombatReceiver 仍在使用
-    
-    // 旧接口桥接：EnemyShapeMorpher 等脚本仍使用 PolarityColor，此属性做自动转换
-    public PolarityColor AttackColor
+    [Header("📐 碰撞盒参数 (Gizmos可视化)")]
+    public Vector3 hitboxCenterOffset;
+    public Vector3 hitboxSize = new Vector3(2f, 2f, 2f);
+    public LayerMask targetLayer; // 设置为 Player 所在的 Layer
+
+    [Header("⚔️ 战斗数据")]
+    private AttackData currentAttackData;
+    private bool isActive = false;
+
+    // 防止在同一次攻击动作中，对同一个目标造成多次伤害
+    private HashSet<Collider> alreadyHitTargets = new HashSet<Collider>();
+
+    /// <summary>
+    /// 激活判定盒（由 EnemyAttackBrain 在进入 Attacking 状态时调用）
+    /// </summary>
+    public void ActivateHitbox(AttackData data)
     {
-        get => PolarityBridge.ToPolarityColor(attackPolarity);
-        set => attackPolarity = PolarityBridge.FromPolarityColor(value);
+        currentAttackData = data;
+        isActive = true;
+        alreadyHitTargets.Clear(); // 每次挥刀清空已命中列表
     }
 
-    private void OnTriggerEnter(Collider other)
+    /// <summary>
+    /// 关闭判定盒（由 EnemyAttackBrain 在 Attacking 结束时调用）
+    /// </summary>
+    public void DeactivateHitbox()
     {
-        // 检查碰到的物体是否实现了 IDamageable（即是否是玩家受击体）
-        IDamageable damageable = other.GetComponent<IDamageable>();
-        if (damageable == null) return;
+        isActive = false;
+        alreadyHitTargets.Clear();
+    }
 
-        // 组装攻击数据包
-        AttackData data = new AttackData
+    private void Update()
+    {
+        // 只有在被 Brain 激活的短短零点几秒内，才执行高性能扫描
+        if (!isActive) return;
+
+        CheckCollision();
+    }
+
+    private void CheckCollision()
+    {
+        // 计算实际的世界坐标中心点
+        Vector3 worldCenter = transform.position + transform.TransformDirection(hitboxCenterOffset);
+
+        // 核心代码：执行 Box 相交检测
+        Collider[] hits = Physics.OverlapBox(worldCenter, hitboxSize / 2f, transform.rotation, targetLayer);
+
+        foreach (Collider hit in hits)
         {
-            damage = this.damage,
-            postureDamage = this.postureDamage,
-            polarity = this.attackPolarity,
-            sourcePosition = transform.position,
-            sourceObject = OwnerPosture != null ? OwnerPosture.gameObject : gameObject
-        };
+            // 如果这个目标在这一刀里已经挨过打了，直接跳过
+            if (alreadyHitTargets.Contains(hit)) continue;
 
-        // 派发给受击目标，接收反馈（true = 完美弹刀成功，攻击者要被硬直）
-        bool isPerfectParry = damageable.TakeDamage(data);
+            // 尝试获取玩家的受击接口
+            IDamageable damageable = hit.GetComponent<IDamageable>();
+            if (damageable != null)
+            {
+                // 记录为已命中
+                alreadyHitTargets.Add(hit);
 
-        if (isPerfectParry && OwnerPosture != null)
-        {
-            // 弹刀反馈：给怪物施加大量熵值（让玩家感受到"破防"的成就感）
-            Debug.Log("[EnemyHitbox] 完美弹刀！反向给怪物施加巨额熵值！");
-            // OwnerPosture.AddPosture(data.postureDamage * 2f); // 可在接入完整结算后启用
+                // 发送伤害数据包，玩家根据自身极性和状态进行博弈结算
+                currentAttackData.hitDirection = (hit.transform.position - transform.position).normalized;
+                
+                // 返回值 isPerfectParried 是玩家告诉怪物："我完美弹反了你的攻击！"
+                bool isPerfectParried = damageable.TakeDamage(currentAttackData);
+
+                if (isPerfectParried)
+                {
+                    Debug.Log("💥 怪物：我的攻击被极性湮灭弹回了！");
+
+                    // 1. 调用系统全局反馈（强烈震动+顿帧）
+                    if (CombatFeedbackManager.Instance != null)
+                    {
+                        CombatFeedbackManager.Instance.TriggerParryFeedback();
+                    }
+
+                    // 2. 怪物遭到反噬：让其直接进入大硬直（通过打满 posture）
+                    // 顺位获取父级或自身的 EnemyPosture 进行制裁
+                    EnemyPosture posture = GetComponentInParent<EnemyPosture>();
+                    if (posture != null)
+                    {
+                        posture.AddPosture(9999f); 
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[EnemyHitbox] 弹刀成功，但未能找到怪物的 EnemyPosture 以触发晕眩！");
+                    }
+                }
+            }
         }
+    }
+
+    // TD 专属：可视化辅助工具！
+    // 只有在 Editor 选中这个物体时，才会画出一个红色的半透明方块，极其方便调手感！
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = isActive ? new Color(1, 0, 0, 0.5f) : new Color(0, 1, 0, 0.2f); // 激活时变红，平时是绿色
+        
+        // 匹配当前物体的旋转和位移
+        Matrix4x4 rotationMatrix = Matrix4x4.TRS(transform.position, transform.rotation, transform.lossyScale);
+        Gizmos.matrix = rotationMatrix;
+        
+        Gizmos.DrawCube(hitboxCenterOffset, hitboxSize);
     }
 }

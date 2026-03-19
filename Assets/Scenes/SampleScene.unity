@@ -155,6 +155,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAttackBrain
   attackCooldown: 3
+  telegraphDuration: 0.6
+  attackActiveDuration: 0.25
+  redSweepHitbox: {fileID: 1845367426}
+  blueSmashHitbox: {fileID: 1410997384}
+  baseDamage: 10
+  basePostureDamage: 20
 --- !u!114 &215896753
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -167,10 +173,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 149ada6a61f1bca4694c60153c3db74d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyShapeMorpher
-  telegraphDuration: 0.5
-  attackDuration: 0.2
-  redSweepBoxPrefab: {fileID: 0}
-  blueSmashCylinderPrefab: {fileID: 0}
 --- !u!114 &215896754
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -210,7 +212,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: f5fd9b441a57d8e439e015a0f8a861ab, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -275,7 +277,9 @@ Transform:
   m_LocalPosition: {x: 0, y: 1, z: 5}
   m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 1845367427}
+  - {fileID: 1410997385}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &215896759
@@ -290,14 +294,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55ce187206d97c54cb1bb95e440d49cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyVisualController
-  telegraphDuration: 0.6
-  attackActiveDuration: 0.25
-  neutralMat: {fileID: 0}
-  redGlowMat: {fileID: 10756, guid: 0000000000000000e000000000000000, type: 0}
-  blueGlowMat: {fileID: 0}
-  stunnedMat: {fileID: 0}
-  redSweepHitboxPrefab: {fileID: 0}
-  blueSmashHitboxPrefab: {fileID: 0}
+  neutralMat: {fileID: 2100000, guid: f5fd9b441a57d8e439e015a0f8a861ab, type: 2}
+  blueGlowMat: {fileID: 2100000, guid: ec2eb10934f1039449fa2a288a2a582f, type: 2}
+  redGlowMat: {fileID: 2100000, guid: b760250efc8676142ad55b264576b890, type: 2}
+  stunnedMat: {fileID: 2100000, guid: 33dad3c4027da4b498881ab3c3171419, type: 2}
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -995,6 +995,55 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1410997383
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1410997385}
+  - component: {fileID: 1410997384}
+  m_Layer: 0
+  m_Name: BlueSmashHitbox
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1410997384
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1410997383}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91ab1bceeab35f248b729fba5ebf352d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
+  hitboxCenterOffset: {x: 0, y: 0, z: 0}
+  hitboxSize: {x: 4, y: 4, z: 4}
+  targetLayer:
+    serializedVersion: 2
+    m_Bits: 1
+--- !u!4 &1410997385
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1410997383}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 215896758}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1481086685
 GameObject:
   m_ObjectHideFlags: 0
@@ -1197,6 +1246,55 @@ MonoBehaviour:
     DissipationDistance: 100
     PropagationSpeed: 343
   DefaultVelocity: {x: 0, y: -1, z: 0}
+--- !u!1 &1845367425
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1845367427}
+  - component: {fileID: 1845367426}
+  m_Layer: 0
+  m_Name: RedSweepHitbox
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1845367426
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1845367425}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91ab1bceeab35f248b729fba5ebf352d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
+  hitboxCenterOffset: {x: 0, y: 0, z: 0}
+  hitboxSize: {x: 4, y: 4, z: 4}
+  targetLayer:
+    serializedVersion: 2
+    m_Bits: 1
+--- !u!4 &1845367427
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1845367425}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 215896758}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2007910182
 GameObject:
   m_ObjectHideFlags: 0
@@ -1216,7 +1314,7 @@ GameObject:
   - component: {fileID: 2007910191}
   m_Layer: 0
   m_Name: Player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1251,7 +1349,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3a2592e66f93f914d963a604d6f6eb60, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  currentState: 0
   moveSpeed: 8
   smoothRotationTime: 0.1
   jumpHeight: 2.5
@@ -1260,6 +1357,7 @@ MonoBehaviour:
   dashSpeed: 20
   dashDuration: 0.2
   dashCooldown: 0.5
+  currentState: 0
 --- !u!114 &2007910185
 MonoBehaviour:
   m_ObjectHideFlags: 0
