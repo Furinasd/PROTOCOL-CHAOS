@@ -162,8 +162,16 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
              Debug.Log("<color=grey>🖱️ 弹刀失败：未在命中瞬间按下左键（格挡窗口 0.25s）。</color>");
         }
 
-        Debug.Log("<color=red>🩸 混沌入侵！极性不符或闪避失败，受到判定伤害！</color>");
-        currentHP -= attack.damage;
+        float calculatedDamage = attack.damage;
+        if (isStandingOnAnomalyCore)
+        {
+            calculatedDamage *= 2f;
+            Debug.Log("<color=red>💥 核心过载！在异常源内受击，伤害翻倍！</color>");
+            transform.DOShakePosition(0.5f, 0.7f, 25, 90, false, true); 
+        }
+
+        Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
+        currentHP -= calculatedDamage;
 
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();

@@ -14,6 +14,7 @@ public class DemoPlayerController : MonoBehaviour
     [Header("🏃 基础移动 (Movement)")]
     public float moveSpeed = 8f;
     private float currentMoveSpeedMultiplier = 1f; // 用于吸收伤害时的减速惩罚
+    [HideInInspector] public float environmentalSpeedMultiplier = 1f; // 用于环境（如Puddle）的持续减速
     public float smoothRotationTime = 0.1f;
     private float currentVelocity;
     
@@ -105,7 +106,7 @@ public class DemoPlayerController : MonoBehaviour
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
-            cc.Move(moveDir * moveSpeed * currentMoveSpeedMultiplier * Time.deltaTime);
+            cc.Move(moveDir * moveSpeed * currentMoveSpeedMultiplier * environmentalSpeedMultiplier * Time.deltaTime);
         }
     }
 

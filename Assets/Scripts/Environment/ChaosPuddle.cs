@@ -14,9 +14,10 @@ public class ChaosPuddle : MonoBehaviour
     public bool isCoreAnomaly = false; // 是否为30%概率的"异常源核心区"
     public Polarity puddlePolarity;
 
-    [Header("⚙️ 惩罚数值 (普通与特殊区均保留此基础风险)")]
+    [Header("⚙️ 惩罚数值 (所有极性一致)")]
     public float damagePerSecond = 15f; 
     public float speedMultiplier = 0.5f; // 减速惩罚比例
+    public int energyDrainPerSecond = 1; // 每秒抽取的秩序能量
 
     [Header("表现层 (需在 PCG 生成时或 Inspector 赋值)")]
     public Material normalFloorMat;
@@ -26,6 +27,7 @@ public class ChaosPuddle : MonoBehaviour
 
     private MeshRenderer meshRenderer;
     private PlayerCombatReceiver currentPlayerInside = null;
+    private PlayerEnergySystem playerEnergy = null;
     private DemoPlayerController playerMovement = null;
     private float originalY;
 
@@ -43,8 +45,22 @@ public class ChaosPuddle : MonoBehaviour
         puddlePolarity = polarity;
         isCoreAnomaly = isSpecial;
 
-        meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : (polarity == Polarity.Blue ? blueHazardMat : redHazardMat);
-        transform.DOMoveY(originalY - 0.2f, 0.2f).SetEase(Ease.OutBounce);
+        Debug.Log($"<color=cyan>🌊 [Puddle] 污染区初始化: 极性={polarity}, 特殊={isSpecial}</color>");
+
+        if (meshRenderer != null)
+        {
+            meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : (polarity == Polarity.Blue ? blueHazardMat : redHazardMat);
+        
+            // 【视觉警报】：快速闪烁并位移
+            Sequence seq = DOTween.Sequence();
+            seq.Append(transform.DOMoveY(originalY - 0.3f, 0.1f).SetEase(Ease.OutFlash));
+            seq.Join(meshRenderer.material.DOColor(Color.white, 0.1f).SetLoops(2, LoopType.Yoyo));
+            seq.Append(transform.DOMoveY(originalY - 0.2f, 0.2f).SetEase(Ease.OutBounce));
+        }
+        else
+        {
+            Debug.LogWarning("<color=red>🛑 [Puddle] MeshRenderer 为空，污染区将不可见！</color>");
+        }
 
         StartCoroutine(PurifyAfterTime(duration));
     }
@@ -61,7 +77,7 @@ public class ChaosPuddle : MonoBehaviour
 
         if (playerMovement != null)
         {
-            playerMovement.moveSpeed = 8f; 
+            playerMovement.environmentalSpeedMultiplier = 1f; 
         }
     }
 
@@ -79,6 +95,7 @@ public class ChaosPuddle : MonoBehaviour
         {
             currentPlayerInside = other.GetComponent<PlayerCombatReceiver>();
             playerMovement = other.GetComponent<DemoPlayerController>();
+            playerEnergy = other.GetComponent<PlayerEnergySystem>();
             
             if (currentPlayerInside != null && isCoreAnomaly)
             {
@@ -96,8 +113,10 @@ public class ChaosPuddle : MonoBehaviour
                 currentPlayerInside.isStandingOnAnomalyCore = false;
             }
             
+            if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f;
+
             currentPlayerInside = null;
-            if (playerMovement != null) playerMovement.moveSpeed = 8f;
+            playerEnergy = null;
             playerMovement = null;
         }
     }
@@ -106,7 +125,17 @@ public class ChaosPuddle : MonoBehaviour
     {
         if (!isContaminated || currentPlayerInside == null || playerMovement == null) return;
 
+        // 统一环境压制：扣血 + 减速 + 抽能
         currentPlayerInside.currentHP -= damagePerSecond * Time.deltaTime;
-        playerMovement.moveSpeed = 8f * speedMultiplier; 
+        playerMovement.environmentalSpeedMultiplier = speedMultiplier; 
+
+        if (playerEnergy != null)
+        {
+            // 抽能逻辑：每秒损失对应格数
+            if (Time.frameCount % 60 == 0) // 粗略每秒一次，避免太过频繁但保持压力
+            {
+                playerEnergy.TryConsumeEnergy(energyDrainPerSecond);
+            }
+        }
     }
 }

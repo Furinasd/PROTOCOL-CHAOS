@@ -36,6 +36,9 @@ public class EnemyAttackBrain : MonoBehaviour
     public float baseDamage = 10f;
     public float basePostureDamage = 20f;
 
+    [Header("🧪 环境预制体")]
+    public GameObject chaosPuddlePrefab;
+
     private EnemyVisualController visualController;
     private EnemyShapeMorpher shapeMorpher;
     private EnemyPosture posture;
@@ -157,11 +160,49 @@ public class EnemyAttackBrain : MonoBehaviour
         if (CurrentState != EnemyState.Stunned)
         {
             if (targetHitbox != null) targetHitbox.DeactivateHitbox();
+            
+            // 【阶段六：环境污染生成】
+            TrySpawnChaosPuddle(attackPolarity);
+
             visualController.ResetVisual();
             CurrentState = EnemyState.Recovering;
         }
 
         onComplete?.Invoke();
+    }
+
+    private void TrySpawnChaosPuddle(Polarity polarity)
+    {
+        if (chaosPuddlePrefab == null)
+        {
+            Debug.LogWarning("<color=orange>⚠️ [Brain] ChaosPuddlePrefab is NULL! 无法生成污染区。</color>");
+            return;
+        }
+
+        // 向地面发射射线
+        RaycastHit hit;
+        Vector3 spawnPos = transform.position + transform.forward * 2f; // 在前方2米生成
+        Debug.Log($"<color=white>🔍 [Brain] 尝试在 {spawnPos} 下方生成污染区...</color>");
+        
+        if (Physics.Raycast(spawnPos + Vector3.up * 5f, Vector3.down, out hit, 10f))
+        {
+            Debug.Log($"<color=white>✅ [Brain] 射线击中地面: {hit.point}，正在实例化 Puddle。</color>");
+            GameObject puddleObj = Instantiate(chaosPuddlePrefab, hit.point + Vector3.up * 0.01f, Quaternion.identity);
+            ChaosPuddle puddle = puddleObj.GetComponent<ChaosPuddle>();
+            if (puddle != null)
+            {
+                bool isSpecial = Random.value < 0.3f; 
+                puddle.Contaminate(polarity, isSpecial);
+            }
+            else
+            {
+                Debug.LogError("<color=red>🛑 [Brain] 实例化对象上未找到 ChaosPuddle 组件！</color>");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("<color=yellow>⚠️ [Brain] 射线未击中任何物体，无法放置污染区。</color>");
+        }
     }
 
     private IEnumerator PurpleBluffRoutine()
