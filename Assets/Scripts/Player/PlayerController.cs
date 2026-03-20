@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
+using DG.Tweening;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(CharacterController))]
 public class DemoPlayerController : MonoBehaviour
@@ -53,6 +55,10 @@ public class DemoPlayerController : MonoBehaviour
     private Vector3 externalImpact; // 外部冲击力
     public float knockbackResistance = 5f; // 阻力，数值越大停止越快
 
+    [Header("🛡️ 软边界控制 (Arena Boundaries)")]
+    public float arenaRadius = 20f;
+    private bool isProcessingOutOfBounds = false;
+
     private void Start()
     {
         cc = GetComponent<CharacterController>();
@@ -62,6 +68,16 @@ public class DemoPlayerController : MonoBehaviour
     private void Update()
     {
         if (Keyboard.current == null) return;
+
+        // 【新规：软边界检测】
+        CheckArenaBoundaries();
+
+        // 【新规：重力与掉落检测】
+        if (transform.position.y < -10f)
+        {
+            ResetLevel();
+            return;
+        }
 
         // 核心状态机路由
         switch (currentState)
@@ -87,6 +103,41 @@ public class DemoPlayerController : MonoBehaviour
             cc.Move(externalImpact * Time.deltaTime);
             externalImpact = Vector3.Lerp(externalImpact, Vector3.zero, knockbackResistance * Time.deltaTime);
         }
+    }
+
+    private void CheckArenaBoundaries()
+    {
+        // 仅检测水平距离 (X-Z)
+        Vector3 flatPos = new Vector3(transform.position.x, 0, transform.position.z);
+        if (flatPos.magnitude > arenaRadius && !isProcessingOutOfBounds)
+        {
+            StartCoroutine(TriggerOutOfBoundsPunishment());
+        }
+    }
+
+    private IEnumerator TriggerOutOfBoundsPunishment()
+    {
+        isProcessingOutOfBounds = true;
+        Debug.Log("<color=red>⚠️ [Boundary] 极性紊乱！警告：您已脱离秩序核心区域！</color>");
+        
+        // 视觉反馈：强抖动 + 视角冲击
+        if (CombatFeedbackManager.Instance != null)
+            CombatFeedbackManager.Instance.TriggerDamageFeedback();
+
+        // 强行禁锢并拉回：使用 DOTween 模拟“吸力”
+        Vector3 suckTarget = Vector3.zero; // 抛向中心
+        suckTarget.y = transform.position.y;
+        
+        // 强制进入顿帧状态防止干扰
+        EnterHitlag(0.6f);
+        
+        yield return transform.DOMove(suckTarget, 0.4f).SetEase(Ease.OutExpo).WaitForCompletion();
+        
+        // 给一个着陆冲击力
+        AddKnockback(Vector3.down, 10f);
+        
+        yield return new WaitForSeconds(0.5f);
+        isProcessingOutOfBounds = false;
     }
 
     #region 移动与 3C 手感 (Movement & Gravity)
@@ -222,8 +273,9 @@ public class DemoPlayerController : MonoBehaviour
         float startTime = Time.time;
         while (Time.time < startTime + dashDuration)
         {
-            // 增加安全检测：如果冲刺中途发现下方彻底悬空（且不是在跳跃高度内），可以考虑中断或增加吸附
-            // 但最核心的修复是确保 Move 的位移在物理帧内是连续的
+            // 增加安全检测：如果冲刺中途触发了边界吸回逻辑，立即中断位移
+            if (isProcessingOutOfBounds) break;
+
             cc.Move(dashDir * dashSpeed * Time.deltaTime);
             yield return null;
         }
@@ -260,6 +312,11 @@ public class DemoPlayerController : MonoBehaviour
         // 恢复之前的状态
         currentState = previousStateBeforeHitlag;
         hitlagCoroutine = null;
+    }
+    private void ResetLevel()
+    {
+        Debug.Log("<color=red>💀 [System] 坠入深渊... 正在重置秩序。</color>");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     #endregion
 }

@@ -173,35 +173,37 @@ public class EnemyAttackBrain : MonoBehaviour
 
     private void TrySpawnChaosPuddle(Polarity polarity)
     {
-        if (chaosPuddlePrefab == null)
-        {
-            Debug.LogWarning("<color=orange>⚠️ [Brain] ChaosPuddlePrefab is NULL! 无法生成污染区。</color>");
-            return;
-        }
-
         // 向地面发射射线
-        RaycastHit hit;
         Vector3 spawnPos = transform.position + transform.forward * 2f; // 在前方2米生成
         Debug.Log($"<color=white>🔍 [Brain] 尝试在 {spawnPos} 下方生成污染区...</color>");
         
-        if (Physics.Raycast(spawnPos + Vector3.up * 5f, Vector3.down, out hit, 10f))
+        RaycastHit[] hits = Physics.RaycastAll(spawnPos + Vector3.up * 5f, Vector3.down, 10f);
+        bool foundGround = false;
+        
+        foreach (var hit in hits)
         {
-            Debug.Log($"<color=white>✅ [Brain] 射线击中地面: {hit.point}，正在实例化 Puddle。</color>");
-            GameObject puddleObj = Instantiate(chaosPuddlePrefab, hit.point + Vector3.up * 0.01f, Quaternion.identity);
-            ChaosPuddle puddle = puddleObj.GetComponent<ChaosPuddle>();
-            if (puddle != null)
+            if (hit.collider.CompareTag("Ground") || hit.collider.gameObject.name.Contains("Ground") || hit.collider.gameObject.name.Contains("Plane"))
             {
-                bool isSpecial = Random.value < 0.3f; 
-                puddle.Contaminate(polarity, isSpecial);
-            }
-            else
-            {
-                Debug.LogError("<color=red>🛑 [Brain] 实例化对象上未找到 ChaosPuddle 组件！</color>");
+                Debug.Log($"<color=white>✅ [Brain] 射线击中地面: {hit.point}，正在回收/提取 Puddle。</color>");
+                
+                if (PuddleManager.Instance != null)
+                {
+                    bool isSpecial = Random.value < 0.3f;
+                    PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, polarity, isSpecial);
+                }
+                else
+                {
+                    Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空，请确保场景中存在该管理器！</color>");
+                }
+                
+                foundGround = true;
+                break;
             }
         }
-        else
+
+        if (!foundGround)
         {
-            Debug.LogWarning("<color=yellow>⚠️ [Brain] 射线未击中任何物体，无法放置污染区。</color>");
+            Debug.LogWarning($"<color=yellow>⚠️ [Brain] 射线未击中地面，无法放置污染区。spawnPos={spawnPos}</color>");
         }
     }
 

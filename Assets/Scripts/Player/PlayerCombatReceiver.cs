@@ -110,8 +110,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 if (isStandingOnAnomalyCore)
                 {
                     Debug.Log("<color=yellow>🌟 异常源核心区逆转！全场污染净化！</color>");
-                    ChaosPuddle[] puddles = Object.FindObjectsByType<ChaosPuddle>(FindObjectsSortMode.None);
-                    foreach(var p in puddles) p.Purify();
+                    PuddleManager.TriggerGlobalPurify();
                 }
 
                 return true;

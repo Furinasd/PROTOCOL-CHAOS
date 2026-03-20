@@ -33,8 +33,22 @@ public class ChaosPuddle : MonoBehaviour
 
     private void Awake()
     {
-        meshRenderer = GetComponent<MeshRenderer>();
+        meshRenderer = GetComponentInChildren<MeshRenderer>();
+        if (meshRenderer == null) Debug.LogWarning("<color=red>🛑 [Puddle] 子物体中未找到 MeshRenderer，渲染或将失败！</color>");
+    }
+
+    private void OnEnable()
+    {
+        PuddleManager.OnGlobalPurify += Purify;
+        // 每次从对象池取出时，重新记录原始 Y 轴
         originalY = transform.position.y;
+    }
+
+    private void OnDisable()
+    {
+        PuddleManager.OnGlobalPurify -= Purify;
+        StopAllCoroutines();
+        transform.DOKill();
     }
 
     public void Contaminate(Polarity polarity, bool isSpecial, float duration = 8f)
@@ -73,7 +87,14 @@ public class ChaosPuddle : MonoBehaviour
         isCoreAnomaly = false;
         
         meshRenderer.material = normalFloorMat;
-        transform.DOMoveY(originalY, 0.4f).SetEase(Ease.InOutQuad);
+
+        // 执行回收表现
+        transform.DOMoveY(originalY, 0.4f).SetEase(Ease.InOutQuad).OnComplete(() => {
+            if (PuddleManager.Instance != null)
+                PuddleManager.Instance.ReturnToPool(this);
+            else
+                gameObject.SetActive(false);
+        });
 
         if (playerMovement != null)
         {
