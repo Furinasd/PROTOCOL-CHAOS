@@ -16,12 +16,12 @@ public class PlayerPolarity : MonoBehaviour
     public bool IsParryWindow { get; private set; }
     private float parryTimer = 0f;
 
-    private DemoPlayerController controller;
+    private PlayerController controller;
     private Renderer meshRenderer;
 
     private void Awake()
     {
-        controller = GetComponent<DemoPlayerController>();
+        controller = GetComponent<PlayerController>();
         meshRenderer = GetComponent<Renderer>();
         UpdateVisuals();
     }
@@ -29,7 +29,7 @@ public class PlayerPolarity : MonoBehaviour
     private void Update()
     {
         // 监听右键切换形态 (通过缓冲队列)
-        if (controller != null && controller.ConsumeBuffer(DemoPlayerController.InputType.SwitchPolarity))
+        if (controller != null && controller.ConsumeBuffer(PlayerController.InputType.SwitchPolarity))
         {
             SwitchPolarity();
         }

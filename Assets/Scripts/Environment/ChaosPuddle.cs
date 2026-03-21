@@ -28,7 +28,7 @@ public class ChaosPuddle : MonoBehaviour
     private MeshRenderer meshRenderer;
     private PlayerCombatReceiver currentPlayerInside = null;
     private PlayerEnergySystem playerEnergy = null;
-    private DemoPlayerController playerMovement = null;
+    private PlayerController playerMovement = null;
     private float originalY;
 
     private void Awake()
@@ -127,7 +127,7 @@ public class ChaosPuddle : MonoBehaviour
         {
             Debug.Log($"<color=orange>🎯 [Puddle] 玩家进入污染区范围！</color>");
             currentPlayerInside = other.GetComponent<PlayerCombatReceiver>();
-            playerMovement = other.GetComponent<DemoPlayerController>();
+            playerMovement = other.GetComponent<PlayerController>();
             playerEnergy = other.GetComponent<PlayerEnergySystem>();
             
             if (currentPlayerInside != null && isCoreAnomaly)

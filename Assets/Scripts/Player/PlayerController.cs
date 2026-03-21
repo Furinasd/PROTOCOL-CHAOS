@@ -6,7 +6,7 @@ using DG.Tweening;
 using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(CharacterController))]
-public class DemoPlayerController : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
     // 兼容原版的属性，供 PlayerCombatReceiver 判定
     public bool IsJumping => currentState == PlayerState.Jumping || (velocity.y > 0 && !cc.isGrounded);

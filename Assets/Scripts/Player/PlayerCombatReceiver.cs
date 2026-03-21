@@ -9,10 +9,10 @@ using DG.Tweening;
 //              包含：空间规避(闪避)、同色吸收、异色受伤、完美弹刀四大判定轨道。
 // ==========================================
 
-[RequireComponent(typeof(DemoPlayerController), typeof(PlayerPolarity), typeof(PlayerEnergySystem))]
+[RequireComponent(typeof(PlayerController), typeof(PlayerPolarity), typeof(PlayerEnergySystem))]
 public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 {
-    private DemoPlayerController controller;
+    private PlayerController controller;
     private PlayerPolarity polarity;
     private PlayerEnergySystem energySystem;
 
@@ -30,7 +30,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
     private void Awake()
     {
-        controller = GetComponent<DemoPlayerController>();
+        controller = GetComponent<PlayerController>();
         polarity = GetComponent<PlayerPolarity>();
         energySystem = GetComponent<PlayerEnergySystem>();
     }
@@ -38,13 +38,13 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     private void Update()
     {
         // 核心：监听请求 (通过缓冲队列)
-        if (controller != null && controller.ConsumeBuffer(DemoPlayerController.InputType.Parry))
+        if (controller != null && controller.ConsumeBuffer(PlayerController.InputType.Parry))
         {
             lastBlockInputTime = Time.time;
             Debug.Log("<color=white>🛡️ 玩家进入格挡姿态...</color>");
         }
 
-        if (controller != null && controller.ConsumeBuffer(DemoPlayerController.InputType.Execute))
+        if (controller != null && controller.ConsumeBuffer(PlayerController.InputType.Execute))
         {
             TryExecuteEnemy();
         }
