@@ -61,11 +61,15 @@ public class CombatFeedbackManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 【宕机处决】综合反馈：最夸张的震动，无顿帧（保留时间流速体验处决的流畅感）
+    /// 【宕机处决】综合反馈：最夸张的震动 + 极致顿帧（极客感）。
     /// </summary>
     public void TriggerAnnihilationFeedback()
     {
         GenerateImpulse(executeShakeForce);
+        // 执行瞬间给一个短暂的“极寒”冻结感，然后瞬间恢复
+        TriggerHitlag(timeScale: 0.02f, duration: 0.25f);
+        
+        Debug.Log("<color=black>⬛ [Feedback] 处决瞬间：时空停滞，万物死寂。</color>");
     }
 
     // ──────────────────────────────────

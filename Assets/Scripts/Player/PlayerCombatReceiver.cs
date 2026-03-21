@@ -203,17 +203,18 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
     private void TryExecuteEnemy()
     {
-        Collider[] hits = Physics.OverlapSphere(transform.position, 3f);
+        Collider[] hits = Physics.OverlapSphere(transform.position, 3.5f); // 略微增加范围以提升手感
         foreach (var hit in hits)
         {
-            EnemyPosture target = hit.GetComponent<EnemyPosture>();
+            EnemyPosture target = hit.GetComponentInParent<EnemyPosture>(); // 适配可能的子级碰撞体
             if (target != null && target.IsBroken)
             {
-                Debug.Log("💠 [终结] Chaos Cleansed. 玩家白盒爆发网格线，彻底切割空间！");
+                // 触发战斗反馈单例的多重演出
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerAnnihilationFeedback();
 
-                Destroy(hit.gameObject, 0.5f);
+                // 核心：调用敌人的终结序列（包含材质替换与爆缩）
+                target.Execute();
                 break;
             }
         }
