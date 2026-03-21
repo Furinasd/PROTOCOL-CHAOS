@@ -4948,10 +4948,10 @@ MonoBehaviour:
   damagePerSecond: 15
   speedMultiplier: 0.5
   energyDrainPerSecond: 1
-  normalFloorMat: {fileID: 0}
-  blueHazardMat: {fileID: 0}
-  redHazardMat: {fileID: 0}
-  anomalyCoreMat: {fileID: 0}
+  normalFloorMat: {fileID: 2100000, guid: f5fd9b441a57d8e439e015a0f8a861ab, type: 2}
+  blueHazardMat: {fileID: 2100000, guid: ec2eb10934f1039449fa2a288a2a582f, type: 2}
+  redHazardMat: {fileID: 2100000, guid: b760250efc8676142ad55b264576b890, type: 2}
+  anomalyCoreMat: {fileID: 2100000, guid: f5fd9b441a57d8e439e015a0f8a861ab, type: 2}
 --- !u!135 &6688627310430982718
 SphereCollider:
   m_ObjectHideFlags: 0

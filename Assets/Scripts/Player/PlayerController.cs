@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
+using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine.SceneManagement;
 
@@ -12,6 +13,16 @@ public class DemoPlayerController : MonoBehaviour
     public bool IsDodging => currentState == PlayerState.Dashing;
 
     [Header("🎯 状态系统 (FSM)")]
+    public Transform visualRoot; // 视觉表现根节点，用于不影响物理的抖动与位移
+
+    public enum InputType { Dash, SwitchPolarity, Parry, Execute }
+    private struct BufferedInput
+    {
+        public InputType type;
+        public float timestamp;
+    }
+    private List<BufferedInput> inputBuffer = new List<BufferedInput>();
+    private float inputBufferDuration = 0.2f; // 缓冲指令有效时长
 
     [Header("🏃 基础移动 (Movement)")]
     public float moveSpeed = 8f;
@@ -61,6 +72,10 @@ public class DemoPlayerController : MonoBehaviour
 
     private void Start()
     {
+        // 【新规：隐藏与锁定鼠标】
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+
         cc = GetComponent<CharacterController>();
         if (Camera.main != null) cam = Camera.main.transform;
     }
@@ -73,7 +88,7 @@ public class DemoPlayerController : MonoBehaviour
         CheckArenaBoundaries();
 
         // 【新规：重力与掉落检测】
-        if (transform.position.y < -10f)
+        if (transform.position.y < -15f)
         {
             ResetLevel();
             return;
@@ -84,15 +99,17 @@ public class DemoPlayerController : MonoBehaviour
         {
             case PlayerState.Normal:
             case PlayerState.Jumping:
+                CaptureInputs();        // 录入所有指令到缓冲队列
+                ProcessInputBuffer();   // 尝试消耗并执行缓冲指令
                 HandleMovement();       // 位移与朝向
                 HandleJump();           // 跳跃与重力
-                HandleDash();           // 冲刺/侧滑
+                // HandleDash 逻辑已拆分至 ProcessInputBuffer
                 break;
             case PlayerState.Dashing:
-                // Dash 期间剥夺控制权，仅执行 Dash 位移
+                CaptureInputs();        // 在 Dash 期间也录入指令，实现“预输入”
                 break;
             case PlayerState.Hitlag:
-                // 顿帧或硬直期间，冻结移动，仅应用重力
+                CaptureInputs();        // 在受击硬直期间录入，恢复瞬间反击
                 ApplyGravityOnly();
                 break;
         }
@@ -118,26 +135,18 @@ public class DemoPlayerController : MonoBehaviour
     private IEnumerator TriggerOutOfBoundsPunishment()
     {
         isProcessingOutOfBounds = true;
-        Debug.Log("<color=red>⚠️ [Boundary] 极性紊乱！警告：您已脱离秩序核心区域！</color>");
+        Debug.Log("<color=red>⚠️ [Boundary] 极性紊乱！警告：您已脱离秩序核心区域！重开中...</color>");
         
         // 视觉反馈：强抖动 + 视角冲击
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
-        // 强行禁锢并拉回：使用 DOTween 模拟“吸力”
-        Vector3 suckTarget = Vector3.zero; // 抛向中心
-        suckTarget.y = transform.position.y;
+        // 强制进入顿帧状态增强死亡感
+        EnterHitlag(0.4f);
         
-        // 强制进入顿帧状态防止干扰
-        EnterHitlag(0.6f);
+        yield return new WaitForSecondsRealtime(0.5f);
         
-        yield return transform.DOMove(suckTarget, 0.4f).SetEase(Ease.OutExpo).WaitForCompletion();
-        
-        // 给一个着陆冲击力
-        AddKnockback(Vector3.down, 10f);
-        
-        yield return new WaitForSeconds(0.5f);
-        isProcessingOutOfBounds = false;
+        ResetLevel();
     }
 
     #region 移动与 3C 手感 (Movement & Gravity)
@@ -242,13 +251,61 @@ public class DemoPlayerController : MonoBehaviour
     #endregion
 
     #region 空间规避与状态控制 (Dash & States)
+    private void CaptureInputs()
+    {
+        if (Keyboard.current.leftShiftKey.wasPressedThisFrame) BufferInput(InputType.Dash);
+        if (Mouse.current.rightButton.wasPressedThisFrame) BufferInput(InputType.SwitchPolarity);
+        if (Mouse.current.leftButton.wasPressedThisFrame) BufferInput(InputType.Parry);
+        if (Keyboard.current.fKey.wasPressedThisFrame) BufferInput(InputType.Execute);
+        
+        // 清理过期指令
+        inputBuffer.RemoveAll(i => Time.time - i.timestamp > inputBufferDuration);
+    }
+
+    private void BufferInput(InputType type)
+    {
+        inputBuffer.Add(new BufferedInput { type = type, timestamp = Time.time });
+    }
+
+    private void ProcessInputBuffer()
+    {
+        if (inputBuffer.Count == 0 || currentState != PlayerState.Normal && currentState != PlayerState.Jumping) return;
+
+        for (int i = 0; i < inputBuffer.Count; i++)
+        {
+            var input = inputBuffer[i];
+            
+            // 执行 Dash
+            if (input.type == InputType.Dash && Time.time >= lastDashTime + dashCooldown)
+            {
+                inputBuffer.RemoveAt(i);
+                StartCoroutine(DashRoutine());
+                return;
+            }
+            
+            // 其他指令 (Switch, Parry, Execute) 由对应的战斗脚本每帧查询 ConsumeBuffer
+        }
+    }
+
+    /// <summary>
+    /// 提供给外部战斗逻辑（PlayerCombatReceiver/PlayerPolarity）通过此接口消费预输入指令
+    /// </summary>
+    public bool ConsumeBuffer(InputType type)
+    {
+        for (int i = 0; i < inputBuffer.Count; i++)
+        {
+            if (inputBuffer[i].type == type)
+            {
+                inputBuffer.RemoveAt(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void HandleDash()
     {
-        // 左 Shift 键触发空间规避
-        if (Keyboard.current.leftShiftKey.wasPressedThisFrame && Time.time >= lastDashTime + dashCooldown)
-        {
-            StartCoroutine(DashRoutine());
-        }
+        // 该逻辑已废弃，统一通过 ProcessInputBuffer 呼叫
     }
 
     private IEnumerator DashRoutine()
@@ -257,8 +314,8 @@ public class DemoPlayerController : MonoBehaviour
         lastDashTime = Time.time;
         velocity.y = 0f; // 冲刺期间不受重力影响
 
-        // 调整视觉缩放作为反馈
-        transform.localScale = new Vector3(1f, 0.5f, 1f);
+        // 【修复冲刺掉出地图Bug】不再使用缩放整个物体的Hack方式，这会导致CharacterController变小进而直接掉出地板穿模
+        // transform.localScale = new Vector3(1f, 0.5f, 1f);
 
         Vector3 dashDir = transform.forward; // 默认向前冲刺
         // 如果有输入，则朝输入方向冲刺
@@ -276,13 +333,14 @@ public class DemoPlayerController : MonoBehaviour
             // 增加安全检测：如果冲刺中途触发了边界吸回逻辑，立即中断位移
             if (isProcessingOutOfBounds) break;
 
-            cc.Move(dashDir * dashSpeed * Time.deltaTime);
+            // 【修复跳跃失灵手感】冲刺期间赋予微量稳定向下的力，确保 CharacterController.isGrounded 不会在平地上闪烁丢失，保证能顺滑接跳跃
+            cc.Move((dashDir * dashSpeed + Vector3.down * 4f) * Time.deltaTime);
             yield return null;
         }
 
         // 冲刺结束后的安全重置
         velocity.y = -2f; // 强制给一个向下贴地力，防止冲刺由于斜坡导致的“飞出”
-        transform.localScale = Vector3.one;
+        // transform.localScale = Vector3.one;
         currentState = PlayerState.Normal;
     }
 
@@ -315,7 +373,7 @@ public class DemoPlayerController : MonoBehaviour
     }
     private void ResetLevel()
     {
-        Debug.Log("<color=red>💀 [System] 坠入深渊... 正在重置秩序。</color>");
+        Debug.Log("<color=red>💀 [System] 坠入深渊/脱离核心区... 秩序重置。</color>");
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     #endregion

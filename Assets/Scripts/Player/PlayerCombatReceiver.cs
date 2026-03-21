@@ -37,14 +37,14 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
     private void Update()
     {
-        // 核心：监听左键格挡输入
-        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        // 核心：监听请求 (通过缓冲队列)
+        if (controller != null && controller.ConsumeBuffer(DemoPlayerController.InputType.Parry))
         {
             lastBlockInputTime = Time.time;
             Debug.Log("<color=white>🛡️ 玩家进入格挡姿态...</color>");
         }
 
-        if (Keyboard.current != null && Keyboard.current.fKey.wasPressedThisFrame)
+        if (controller != null && controller.ConsumeBuffer(DemoPlayerController.InputType.Execute))
         {
             TryExecuteEnemy();
         }
@@ -61,15 +61,17 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         // ────────────────────────────────
         if (controller.IsDodging || controller.IsJumping)
         {
-            // 【系统对齐】：同时检测冲刺瞬间与起跳瞬间产生的无敌回能
             float timeSinceDash = Time.time - controller.LastDashTime;
             float timeSinceJump = Time.time - controller.LastJumpTime;
             
-            // 判定起跳或冲刺前 0.25 秒内属于完美规避
             if (timeSinceDash <= 0.25f || timeSinceJump <= 0.25f)
             {
                 Debug.Log($"<color=white>💨 完美规避！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 能量 +2</color>");
                 energySystem.AddEnergy(2); 
+
+                // 触发玩家端粒子特效
+                if (PlayerCombatVFX.Instance != null)
+                    PlayerCombatVFX.Instance.TriggerDodgeVFX();
                 
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
@@ -85,13 +87,17 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         // 轨道一：完美弹刀判定 (左键点击 + 异色攻击)
         // ────────────────────────────────
         bool isBlocking = (Time.time - lastBlockInputTime) <= blockWindow;
-        if (isBlocking && attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral)
+        
+        // 【白皮书差异修复】：在特殊污染区允许弹紫色 (Neutral) 攻击
+        bool canParryNeutral = isBlocking && attack.polarity == Polarity.Neutral && isStandingOnAnomalyCore;
+        
+        if ((isBlocking && attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral) || canParryNeutral)
         {
-            int cost = isStandingOnAnomalyCore ? 0 : 2; // 弹刀消耗改为 2 格！高光区保持 0 消耗。
+            int cost = isStandingOnAnomalyCore ? 0 : 3; // 修复：能量消耗从 2 提升至 3
 
             if (energySystem.TryConsumeEnergy(cost))
             {
-                Debug.Log("<color=orange>✨ 极性湮灭！完美弹刀！</color>");
+                Debug.Log(canParryNeutral ? "<color=purple>🌟 奇迹！异常源内成功弹回了混沌紫光！</color>" : "<color=orange>✨ 极性湮灭！完美弹刀！</color>");
 
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerParryFeedback();
@@ -101,12 +107,12 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                     EnemyPosture sourcePosture = attack.sourceObject.GetComponent<EnemyPosture>();
                     if (sourcePosture != null)
                     {
-                        float finalDamage = parryCounterPostureDamage * (isStandingOnAnomalyCore ? 3f : 1f);
+                        // 修正：在特殊污染区弹刀造成双倍伤害 (2f)
+                        float finalDamage = parryCounterPostureDamage * (isStandingOnAnomalyCore ? 2f : 1f);
                         sourcePosture.AddPosture(finalDamage);
                     }
                 }
 
-                // 踩在高光区完美弹刀触发全屏净化！
                 if (isStandingOnAnomalyCore)
                 {
                     Debug.Log("<color=yellow>🌟 异常源核心区逆转！全场污染净化！</color>");
@@ -120,15 +126,14 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 Debug.Log("<color=red>🩸 能量不足！强行越级弹刀导致防御溃散，受到全额惩罚！</color>");
                 currentHP -= attack.damage;
                 
-                // 强化惩罚反馈：强震动 + 明显的受击顿帧
                 if (CombatFeedbackManager.Instance != null)
                 {
                     CombatFeedbackManager.Instance.TriggerDamageFeedback();
-                    // 额外给一个特大震动，代表“破盾”
-                    transform.DOShakePosition(0.4f, 0.5f, 20, 90, false, true);
+                    if (controller.visualRoot != null)
+                        controller.visualRoot.DOShakePosition(0.4f, 0.5f, 20, 90, false, true);
                 }
                 
-                controller.EnterHitlag(0.6f); // 极大的防守溃散硬直惩罚
+                controller.EnterHitlag(0.6f);
                 return false;
             }
         }
@@ -139,16 +144,22 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (attack.polarity == playerPolarity)
         {
             Debug.Log("<color=cyan>⚡ 秩序包容！同色攻击被吸收。代价：产生物理击退与暂时减速。</color>");
-            energySystem.AddEnergy(1); // 同色吸收奖励 1 格能量
+            energySystem.AddEnergy(1);
             
-            // 效果：击退 + 50% 减速 1.5 秒
             ApplyKnockback(attack.sourcePosition);
-            controller.ApplySlowdown(1.5f, 0.5f); 
+            controller.ApplySlowdown(1.5f, 0.5f);
+
+            // 触发吸收粒子：颜色跟随极性
+            if (PlayerCombatVFX.Instance != null)
+            {
+                Color vfxColor = (playerPolarity == Polarity.Blue) ? new Color(0.2f, 0.5f, 1f) : new Color(1f, 0.2f, 0.2f);
+                PlayerCombatVFX.Instance.TriggerAbsorptionVFX(vfxColor);
+            }
             
             return false;
         }
 
-        // 诊断逻辑：为什么没触发弹刀？
+        // 诊断逻辑
         if (isBlocking)
         {
             if (attack.polarity == playerPolarity) 
@@ -166,7 +177,8 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         {
             calculatedDamage *= 2f;
             Debug.Log("<color=red>💥 核心过载！在异常源内受击，伤害翻倍！</color>");
-            transform.DOShakePosition(0.5f, 0.7f, 25, 90, false, true); 
+            if (controller.visualRoot != null)
+                controller.visualRoot.DOShakePosition(0.5f, 0.7f, 25, 90, false, true); 
         }
 
         Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
@@ -180,11 +192,8 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (currentHP <= 0)
         {
             Debug.Log("<color=red>💀 玩家阵亡！正在重新加载场景...</color>");
-            
-            // 重要：重置全局物理状态，防止 TimeScale 永久卡在 0.05
             Time.timeScale = 1f;
             DOTween.KillAll(); 
-            
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 

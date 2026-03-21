@@ -173,9 +173,11 @@ public class EnemyAttackBrain : MonoBehaviour
 
     private void TrySpawnChaosPuddle(Polarity polarity)
     {
-        // 向地面发射射线
-        Vector3 spawnPos = transform.position + transform.forward * 2f; // 在前方2米生成
-        Debug.Log($"<color=white>🔍 [Brain] 尝试在 {spawnPos} 下方生成污染区...</color>");
+        if (playerTransform == null) return;
+
+        // 【新规】：在攻击瞬间玩家所在位置生成
+        Vector3 spawnPos = playerTransform.position; 
+        Debug.Log($"<color=white>🔍 [Brain] 尝试在玩家位置 {spawnPos} 下方生成污染区...</color>");
         
         RaycastHit[] hits = Physics.RaycastAll(spawnPos + Vector3.up * 5f, Vector3.down, 10f);
         bool foundGround = false;
@@ -188,12 +190,20 @@ public class EnemyAttackBrain : MonoBehaviour
                 
                 if (PuddleManager.Instance != null)
                 {
-                    bool isSpecial = Random.value < 0.3f;
-                    PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, polarity, isSpecial);
+                    // 30%概率生成特殊污染区
+                    bool isSpecial = Random.value <= 0.3f;
+                    // 略微调小一点防止铺场过快
+                    float sizeMultiplier = Random.Range(0.8f, 1.2f);
+                    
+                    // 【新规】：传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
+                    ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
+                    
+                    // 应用缩放
+                    if (puddle != null) puddle.ApplySizeMultiplier(sizeMultiplier);
                 }
                 else
                 {
-                    Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空，请确保场景中存在该管理器！</color>");
+                    Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空！</color>");
                 }
                 
                 foundGround = true;
@@ -210,40 +220,57 @@ public class EnemyAttackBrain : MonoBehaviour
     private IEnumerator PurpleBluffRoutine()
     {
         CurrentState = EnemyState.Telegraphing;
-        Debug.Log("<color=purple>【狂暴】Boss 进入紫光预警！绝对禁盾二连击！</color>");
+        Debug.Log("<color=purple>【狂暴】Boss 进入紫光预警！绝对禁盾二连击！可在特殊污染区强制弹刀！</color>");
 
-        // 预警：紫色光效
-        visualController.GlowForTelegraph(Polarity.Neutral, telegraphDuration);
-        shapeMorpher.MorphForTelegraph(telegraphDuration, 3); // 紫色使用爆发形变
-        
-        if (tracker != null) tracker.StartTracking(15f); // 极速追踪
-        yield return new WaitForSeconds(telegraphDuration);
-        if (tracker != null) tracker.StopTracking();
+        float p2Duration = 10f; // 二阶段持续 10 秒
+        float startTime = Time.time;
 
-        if (CurrentState == EnemyState.Stunned) yield break;
+        while (Time.time < startTime + p2Duration && CurrentState != EnemyState.Stunned)
+        {
+            // 预警：紫色光效
+            visualController.GlowForTelegraph(Polarity.Neutral, telegraphDuration);
+            shapeMorpher.MorphForTelegraph(telegraphDuration, 3); 
+            
+            if (tracker != null) tracker.StartTracking(15f);
+            yield return new WaitForSeconds(telegraphDuration);
+            if (tracker != null) tracker.StopTracking();
 
-        // 第一击：红光极速横扫 (无视防御属性)
-        CurrentState = EnemyState.Attacking;
-        AttackData pd = new AttackData {
-            damage = baseDamage * 0.7f,
-            postureDamage = 0, // 紫光击不造成爆槽，只伤血
-            polarity = Polarity.Neutral, // 绝对禁盾
-            sourcePosition = transform.position,
-            sourceObject = gameObject
-        };
-        
-        redSweepHitbox.ActivateHitbox(pd);
-        yield return new WaitForSeconds(0.15f);
-        redSweepHitbox.DeactivateHitbox();
+            if (CurrentState == EnemyState.Stunned) break;
 
-        // 瞬间衔接第二击：蓝光重砸
-        blueSmashHitbox.ActivateHitbox(pd);
-        yield return new WaitForSeconds(0.15f);
-        blueSmashHitbox.DeactivateHitbox();
+            // 第一击：红光极速横扫
+            CurrentState = EnemyState.Attacking;
+            AttackData pd = new AttackData {
+                damage = baseDamage * 0.7f,
+                postureDamage = 0,
+                polarity = Polarity.Neutral,
+                sourcePosition = transform.position,
+                sourceObject = gameObject
+            };
+            
+            redSweepHitbox.ActivateHitbox(pd);
+            yield return new WaitForSeconds(0.15f);
+            redSweepHitbox.DeactivateHitbox();
 
-        visualController.ResetVisual();
-        shapeMorpher.ResetShape(0.1f);
+            // 瞬间衔接第二击：蓝光重砸
+            blueSmashHitbox.ActivateHitbox(pd);
+            yield return new WaitForSeconds(0.15f);
+            blueSmashHitbox.DeactivateHitbox();
+
+            visualController.ResetVisual();
+            shapeMorpher.ResetShape(0.1f);
+            CurrentState = EnemyState.Idle;
+            
+            yield return new WaitForSeconds(1.5f); // 两次连击间的间隔
+        }
+
+        Debug.Log("<color=white>【解除】紫光态持续时间结束，恢复正常。</color>");
         CurrentState = EnemyState.Idle;
+    }
+
+    public void ResetAfterStun()
+    {
+        CurrentState = EnemyState.Idle;
+        visualController.ResetVisual();
     }
 
     private void OnAttackEnd()

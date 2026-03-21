@@ -21,8 +21,8 @@ public class ChaosPuddle : MonoBehaviour
 
     [Header("表现层 (需在 PCG 生成时或 Inspector 赋值)")]
     public Material normalFloorMat;
-    public Material blueHazardMat;
-    public Material redHazardMat;
+    [UnityEngine.Serialization.FormerlySerializedAs("blueHazardMat")]
+    public Material purpleHazardMat; // 唯一的普通污染区紫色材质
     public Material anomalyCoreMat; // 核心高光材质
 
     private MeshRenderer meshRenderer;
@@ -33,8 +33,18 @@ public class ChaosPuddle : MonoBehaviour
 
     private void Awake()
     {
-        meshRenderer = GetComponentInChildren<MeshRenderer>();
-        if (meshRenderer == null) Debug.LogWarning("<color=red>🛑 [Puddle] 子物体中未找到 MeshRenderer，渲染或将失败！</color>");
+        // 【优先搜索】显式命名的视觉子物体，避免获取到根节点的冗余渲染器
+        Transform visualT = transform.Find("PuddleVisual");
+        if (visualT != null)
+        {
+            meshRenderer = visualT.GetComponent<MeshRenderer>();
+            // 【重要修复】将 Quad 翻转至正面朝上，解决因为 270 度导致的背面剔除 (Cull Back) 透明问题
+            visualT.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        }
+        
+        if (meshRenderer == null) meshRenderer = GetComponentInChildren<MeshRenderer>();
+        
+        if (meshRenderer == null) Debug.LogWarning("<color=red>🛑 [Puddle] 未找到 MeshRenderer，污染区将不可见！</color>");
     }
 
     private void OnEnable()
@@ -56,6 +66,7 @@ public class ChaosPuddle : MonoBehaviour
         if (isContaminated) return;
 
         isContaminated = true;
+        // 极性仅作记录，视觉统一为紫色
         puddlePolarity = polarity;
         isCoreAnomaly = isSpecial;
 
@@ -63,13 +74,13 @@ public class ChaosPuddle : MonoBehaviour
 
         if (meshRenderer != null)
         {
-            meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : (polarity == Polarity.Blue ? blueHazardMat : redHazardMat);
+            meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : purpleHazardMat;
         
-            // 【视觉警报】：快速闪烁并位移
+            // 【重要修复】：将动画坐标修正为+0.3f向上漂浮，防止面片陷入 Ground 层导致不可见
             Sequence seq = DOTween.Sequence();
-            seq.Append(transform.DOMoveY(originalY - 0.3f, 0.1f).SetEase(Ease.OutFlash));
+            seq.Append(transform.DOMoveY(originalY + 0.3f, 0.1f).SetEase(Ease.OutFlash));
             seq.Join(meshRenderer.material.DOColor(Color.white, 0.1f).SetLoops(2, LoopType.Yoyo));
-            seq.Append(transform.DOMoveY(originalY - 0.2f, 0.2f).SetEase(Ease.OutBounce));
+            seq.Append(transform.DOMoveY(originalY, 0.2f).SetEase(Ease.OutBounce));
         }
         else
         {
@@ -114,6 +125,7 @@ public class ChaosPuddle : MonoBehaviour
         
         if (other.CompareTag("Player"))
         {
+            Debug.Log($"<color=orange>🎯 [Puddle] 玩家进入污染区范围！</color>");
             currentPlayerInside = other.GetComponent<PlayerCombatReceiver>();
             playerMovement = other.GetComponent<DemoPlayerController>();
             playerEnergy = other.GetComponent<PlayerEnergySystem>();
@@ -129,6 +141,7 @@ public class ChaosPuddle : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
+            Debug.Log($"<color=gray>🍃 [Puddle] 玩家离开污染区范围。</color>");
             if (currentPlayerInside != null && isCoreAnomaly)
             {
                 currentPlayerInside.isStandingOnAnomalyCore = false;
@@ -140,6 +153,15 @@ public class ChaosPuddle : MonoBehaviour
             playerEnergy = null;
             playerMovement = null;
         }
+    }
+
+    /// <summary>
+    /// 外部调用以动态调整污染区大小
+    /// </summary>
+    public void ApplySizeMultiplier(float multiplier)
+    {
+        // 保持 Y 轴缩放为 1，仅调整 XZ 平面
+        transform.localScale = new Vector3(5.0f * multiplier, 1f, 5.0f * multiplier);
     }
 
     private void Update()

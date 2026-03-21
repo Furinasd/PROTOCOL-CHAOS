@@ -90,8 +90,16 @@ public class CombatFeedbackManager : MonoBehaviour
     /// </summary>
     private void TriggerHitlag(float timeScale, float duration)
     {
-        if (isHitlagging) return;
-        StartCoroutine(HitlagCoroutine(timeScale, duration));
+        if (TimeManager.Instance != null)
+        {
+            TimeManager.Instance.DoHitstop(duration, timeScale);
+        }
+        else
+        {
+            // 回退逻辑，防止 TimeManager 未被正确初始化的极端情况
+            if (isHitlagging) return;
+            StartCoroutine(HitlagCoroutine(timeScale, duration));
+        }
     }
 
     private IEnumerator HitlagCoroutine(float timeScale, float duration)
@@ -103,7 +111,7 @@ public class CombatFeedbackManager : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < duration)
         {
-            elapsed += Time.unscaledDeltaTime; // 关键：不受TimeScale影响的等待
+            elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
 
