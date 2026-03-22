@@ -9,7 +9,7 @@ using UnityEngine.SceneManagement;
 public class PlayerController : MonoBehaviour
 {
     // 兼容原版的属性，供 PlayerCombatReceiver 判定
-    public bool IsJumping => currentState == PlayerState.Jumping || (velocity.y > 0 && !cc.isGrounded);
+    public bool IsJumping => currentState == PlayerState.Jumping || (!cc.isGrounded && velocity.y != 0); // 只要不在地面且有位移，就视为广义跳跃中
     public bool IsDodging => currentState == PlayerState.Dashing;
 
     [Header("🎯 状态系统 (FSM)")]
@@ -211,6 +211,7 @@ public class PlayerController : MonoBehaviour
             coyoteTimeCounter = 0f;
             lastJumpTime = Time.time;
             currentState = PlayerState.Jumping;
+            Debug.Log($"<color=cyan>🦘 [Action] Player Jumped at {lastJumpTime:F2}</color>");
         }
 
         // Mario 下落曲线：如果正在下落，或者提前松开跳跃键，重力加倍 (手感极其干净利落)
@@ -312,6 +313,7 @@ public class PlayerController : MonoBehaviour
     {
         currentState = PlayerState.Dashing;
         lastDashTime = Time.time;
+        Debug.Log($"<color=cyan>💨 [Action] Player Dashed at {lastDashTime:F2}</color>");
         velocity.y = 0f; // 冲刺期间不受重力影响
 
         Vector3 dashDir = transform.forward; // 默认向前冲刺

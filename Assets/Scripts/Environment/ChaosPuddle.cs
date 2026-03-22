@@ -96,6 +96,14 @@ public class ChaosPuddle : MonoBehaviour
         PuddleManager.OnGlobalPurify -= Purify;
         StopAllCoroutines();
         transform.DOKill();
+        
+        // 【核心修复】：对象池回收前务必清空对玩家的引用，防止残留扣血
+        if (currentPlayerInside != null && isCoreAnomaly) 
+            currentPlayerInside.isStandingOnAnomalyCore = false;
+
+        currentPlayerInside = null;
+        playerEnergy = null;
+        playerMovement = null;
     }
 
     public void Contaminate(Polarity polarity, bool isSpecial)
@@ -162,6 +170,11 @@ public class ChaosPuddle : MonoBehaviour
         });
 
         if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f; 
+
+        // 清理引用
+        currentPlayerInside = null;
+        playerEnergy = null;
+        playerMovement = null;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -196,8 +209,14 @@ public class ChaosPuddle : MonoBehaviour
     private void Update()
     {
         if (!isContaminated || currentPlayerInside == null || playerMovement == null) return;
+
         currentPlayerInside.currentHP -= damagePerSecond * Time.deltaTime;
         playerMovement.environmentalSpeedMultiplier = speedMultiplier; 
-        if (playerEnergy != null && Time.frameCount % 60 == 0) playerEnergy.TryConsumeEnergy(energyDrainPerSecond);
+
+        if (playerEnergy != null) 
+        {
+            // 使用能量系统内置的保护接口，每3秒扣除一次，且多区域重叠不翻倍
+            playerEnergy.TryEnvironmentalDrain(energyDrainPerSecond, 3.0f);
+        }
     }
 }

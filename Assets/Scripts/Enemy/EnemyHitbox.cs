@@ -52,21 +52,34 @@ public class EnemyHitbox : MonoBehaviour
     {
         // 计算实际的世界坐标中心点
         Vector3 worldCenter = transform.position + transform.TransformDirection(hitboxCenterOffset);
+        
+        // 【核心修复】：计算缩放后的实际体积。OverlapBox 需要半长宽高。
+        // 原本忽略了 transform.lossyScale，导致物理判定区域比 Gizmos 看到的要小。
+        Vector3 scaledHalfSize = Vector3.Scale(hitboxSize, transform.lossyScale) / 2f;
 
         // 1. 核心区伤害判定 (正常受击与弹刀)
-        Collider[] hits = Physics.OverlapBox(worldCenter, hitboxSize / 2f, transform.rotation, targetLayer);
+        Collider[] hits = Physics.OverlapBox(worldCenter, scaledHalfSize, transform.rotation, targetLayer);
 
         foreach (Collider hit in hits)
         {
             // 尝试获取玩家的受击接口
             IDamageable damageable = hit.GetComponentInParent<IDamageable>();
-            if (damageable == null) continue;
+            if (damageable == null) 
+            {
+                // Debug.Log($"[Hitbox] {gameObject.name} 触碰了 {hit.name}，但其父级未找到 IDamageable 接口。");
+                continue;
+            }
 
             // 如果这个接口组件在这一刀里已经挨过打了，直接跳过
-            if (alreadyHitComponents.Contains(damageable)) continue;
+            if (alreadyHitComponents.Contains(damageable)) 
+            {
+                // Debug.Log($"[Hitbox] {gameObject.name} 再次触碰了 {hit.name}，已忽略重复命中。");
+                continue;
+            }
 
             // 记录为已命中接口
             alreadyHitComponents.Add(damageable);
+            Debug.Log($"<color=orange>[Hitbox] {gameObject.name} 成功命中目标：{hit.name}</color>");
 
             // 发送伤害数据包，玩家根据自身极性和状态进行博弈结算
             currentAttackData.hitDirection = (hit.transform.position - transform.position).normalized;
@@ -76,7 +89,7 @@ public class EnemyHitbox : MonoBehaviour
 
             if (isPerfectParried)
             {
-                Debug.Log("💥 怪物：我的攻击被极性湮灭弹回了！");
+                Debug.Log("💥 怪物：我的攻击被极性湮灭弹回了！即将进入大硬直。");
 
                 // 1. 调用系统全局反馈（强烈震动+顿帧）
                 if (CombatFeedbackManager.Instance != null)
@@ -90,16 +103,13 @@ public class EnemyHitbox : MonoBehaviour
                 {
                     posture.AddPosture(posture.maxPosture); 
                 }
-                else
-                {
-                    Debug.LogWarning("[EnemyHitbox] 弹刀成功，但未能找到怪物的 EnemyPosture 以触发晕眩！");
-                }
             }
         }
 
         // 2. 边缘区/近失 (Graze) 判定：只用于捕捉那些用物理位移躲开核心区的玩家
         // 扩大 1.5 倍判定框，专门奖励成功蹭破攻击边缘的玩家
-        Collider[] nearMisses = Physics.OverlapBox(worldCenter, hitboxSize * 0.75f, transform.rotation, targetLayer); // hitboxSize * 1.5f / 2f
+        Vector3 nearMissHalfSize = scaledHalfSize * 1.5f; 
+        Collider[] nearMisses = Physics.OverlapBox(worldCenter, nearMissHalfSize, transform.rotation, targetLayer); 
         foreach (Collider hit in nearMisses)
         {
             PlayerCombatReceiver receiver = hit.GetComponentInParent<PlayerCombatReceiver>();

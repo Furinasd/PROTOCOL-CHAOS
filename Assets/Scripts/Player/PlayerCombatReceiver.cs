@@ -26,7 +26,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     // 状态标记
     public bool isStandingOnAnomalyCore = false;
     private float lastBlockInputTime = -10f;
-    private float blockWindow = 0.25f; // 左键格挡的有效判定持续时间
+    private float blockWindow = 0.2f; // 对冲判定窗口 (设计稿要求)
 
     private void Awake()
     {
@@ -50,148 +50,119 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         }
     }
 
+    // ==========================================
+    // 核心战斗判定逻辑：四阶段轨道系统
+    // ==========================================
     public bool TakeDamage(AttackData attack)
     {
         if (currentHP <= 0) return false;
 
+        // 获取当前极性枚举
         Polarity playerPolarity = PolarityBridge.FromPolarityColor(polarity.CurrentColor);
-
-        // ────────────────────────────────
-        // 轨道〇：空间规避 (闪避无敌与完美闪避)
-        // ────────────────────────────────
+        
+        // ---------------------------------------------------------
+        // 轨道 1：空间规避 (Spatial Evasion) - 充能手段
+        // ---------------------------------------------------------
         if (controller.IsDodging || controller.IsJumping)
         {
             float timeSinceDash = Time.time - controller.LastDashTime;
             float timeSinceJump = Time.time - controller.LastJumpTime;
             
-            if (timeSinceDash <= 0.25f || timeSinceJump <= 0.25f)
+            // 判定窗口：0.3s (设计稿要求)
+            if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
             {
-                Debug.Log($"<color=white>💨 完美规避！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 能量 +2</color>");
+                Debug.Log("<color=white>💨 完美规避！获取 2 格秩序能量奖励。</color>");
                 energySystem.AddEnergy(2); 
 
-                // 触发玩家端粒子特效
-                if (PlayerCombatVFX.Instance != null)
-                    PlayerCombatVFX.Instance.TriggerDodgeVFX();
+                if (PlayerCombatVFX.Instance != null) PlayerCombatVFX.Instance.TriggerDodgeVFX();
+                if (CombatFeedbackManager.Instance != null) CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
                 
-                if (CombatFeedbackManager.Instance != null)
-                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
+                return false; // 规避成功
             }
-            else
-            {
-                Debug.Log("<color=grey>💨 空间规避成功。</color>");
-            }
-            return false;
         }
 
-        // ────────────────────────────────
-        // 轨道一：完美弹刀判定 (左键点击 + 异色攻击)
-        // ────────────────────────────────
-        bool isBlocking = (Time.time - lastBlockInputTime) <= blockWindow;
-        
-        // 【白皮书差异修复】：在特殊污染区允许弹紫色 (Neutral) 攻击
-        bool canParryNeutral = isBlocking && attack.polarity == Polarity.Neutral && isStandingOnAnomalyCore;
-        
-        if ((isBlocking && attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral) || canParryNeutral)
+        // ---------------------------------------------------------
+        // 轨道 2：极性对冲/弹刀 (Polarity Annihilation) - 核心输出
+        // ---------------------------------------------------------
+        bool isBlocking = (Time.time - lastBlockInputTime) <= blockWindow; // 使用 0.2s 窗口
+        bool isDifferentPolarity = attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral;
+
+        if (isBlocking && isDifferentPolarity)
         {
-            int cost = isStandingOnAnomalyCore ? 0 : 3; // 修复：能量消耗从 2 提升至 3
-
-            if (energySystem.TryConsumeEnergy(cost))
+            // 执行条件：必须消耗 3 格秩序能量
+            if (energySystem.currentEnergyGrids >= 3)
             {
-                Debug.Log(canParryNeutral ? "<color=purple>🌟 奇迹！异常源内成功弹回了混沌紫光！</color>" : "<color=orange>✨ 极性湮灭！完美弹刀！</color>");
-
+                energySystem.TryConsumeEnergy(3);
+                Debug.Log("<color=cyan>✨ 极性湮灭！成功弹刀异色攻击！</color>");
+                
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerParryFeedback();
 
+                // 造成反伤（对怪物 Posture）
                 if (attack.sourceObject != null)
                 {
                     EnemyPosture sourcePosture = attack.sourceObject.GetComponent<EnemyPosture>();
                     if (sourcePosture != null)
                     {
-                        // 修正：在特殊污染区弹刀造成双倍伤害 (2f)
+                        // 基础反伤，核心区加成
                         float finalDamage = parryCounterPostureDamage * (isStandingOnAnomalyCore ? 2f : 1f);
                         sourcePosture.AddPosture(finalDamage);
                     }
                 }
 
-                if (isStandingOnAnomalyCore)
-                {
-                    Debug.Log("<color=yellow>🌟 异常源核心区逆转！全场污染净化！</color>");
-                    PuddleManager.TriggerGlobalPurify();
-                }
-
-                return true;
+                return true; // 返回 true 告知怪物被弹飞
             }
             else
             {
-                Debug.Log("<color=red>🩸 能量不足！强行越级弹刀导致防御溃散，受到全额惩罚！</color>");
-                currentHP -= attack.damage;
-                
-                if (CombatFeedbackManager.Instance != null)
-                {
-                    CombatFeedbackManager.Instance.TriggerDamageFeedback();
-                    if (controller.visualRoot != null)
-                        controller.visualRoot.DOShakePosition(0.4f, 0.5f, 20, 90, false, true);
-                }
-                
-                controller.EnterHitlag(0.6f);
-                return false;
+                Debug.Log("<color=red>❌ 弹刀失败：能量不足 3 格，无法湮灭攻击！</color>");
+                // Fallthrough 进入受击流程
             }
         }
 
-        // ────────────────────────────────
-        // 轨道二：同色吸收 (稳妥解法)
-        // ────────────────────────────────
+        // ---------------------------------------------------------
+        // 轨道 3：同色吸收 (Polarity Absorption) - 稳妥解/充能
+        // ---------------------------------------------------------
         if (attack.polarity == playerPolarity)
         {
-            Debug.Log("<color=cyan>⚡ 秩序包容！同色攻击被吸收。代价：产生物理击退与暂时减速。</color>");
+            Debug.Log("<color=cyan>⚡ 同色吸收！不扣血，获得 1 格秩序能量。</color>");
             energySystem.AddEnergy(1);
             
             ApplyKnockback(attack.sourcePosition);
-            controller.ApplySlowdown(1.5f, 0.5f);
+            controller.ApplySlowdown(0.8f, 0.4f);
 
-            // 触发吸收粒子：颜色跟随极性
-            if (PlayerCombatVFX.Instance != null)
-            {
-                Color vfxColor = (playerPolarity == Polarity.Blue) ? new Color(0.2f, 0.5f, 1f) : new Color(1f, 0.2f, 0.2f);
-                PlayerCombatVFX.Instance.TriggerAbsorptionVFX(vfxColor);
-            }
+            if (CombatFeedbackManager.Instance != null)
+                CombatFeedbackManager.Instance.TriggerDamageFeedback();
             
+            if (controller.visualRoot != null)
+                controller.visualRoot.DOShakePosition(0.4f, 0.5f, 20, 90, false, true).SetUpdate(true);
+            
+            controller.EnterHitlag(0.05f); 
             return false;
         }
 
-        // 诊断逻辑
-        if (isBlocking)
-        {
-            if (attack.polarity == playerPolarity) 
-                Debug.Log("<color=white>❕ 弹刀失败：同色攻击只能吸收，不能弹刀！请切换极性后再点击左键。</color>");
-            else if (attack.polarity == Polarity.Neutral)
-                Debug.Log("<color=purple>⚠️ 弹刀失败：无法格挡紫光危险技！只能闪避！</color>");
-        }
-        else if (attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral)
-        {
-             Debug.Log("<color=grey>🖱️ 弹刀失败：未在命中瞬间按下左键（格挡窗口 0.25s）。</color>");
-        }
-
+        // ---------------------------------------------------------
+        // 轨道 4：混沌入侵 (Standard Damage) - 落地扣血
+        // ---------------------------------------------------------
         float calculatedDamage = attack.damage;
-        if (isStandingOnAnomalyCore)
+        if (isStandingOnAnomalyCore) 
         {
             calculatedDamage *= 2f;
             Debug.Log("<color=red>💥 核心过载！在异常源内受击，伤害翻倍！</color>");
-            if (controller.visualRoot != null)
-                controller.visualRoot.DOShakePosition(0.5f, 0.7f, 25, 90, false, true); 
         }
 
         Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
         currentHP -= calculatedDamage;
 
-        // 【补全反馈】：即便未被吸收，受到真实伤害（异色/中性）时也应触发物理击退，防止受击感太轻
-        ApplyKnockback(attack.sourcePosition);
+        if (controller.visualRoot != null)
+            controller.visualRoot.DOShakePosition(0.4f, 0.8f, 25, 90, false, true).SetUpdate(true);
 
+        ApplyKnockback(attack.sourcePosition);
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
         controller.EnterHitlag(0.2f);
 
+        // 阵亡检测
         if (currentHP <= 0)
         {
             Debug.Log("<color=red>💀 玩家阵亡！正在重新加载场景...</color>");
@@ -244,16 +215,18 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
             float timeSinceDash = Time.time - controller.LastDashTime;
             float timeSinceJump = Time.time - controller.LastJumpTime;
             
-            if (timeSinceDash <= 0.25f || timeSinceJump <= 0.25f)
+            Debug.Log($"[Combat] NearMiss detected. IsDodging:{controller.IsDodging}, IsJumping:{controller.IsJumping}, timeSinceDash:{timeSinceDash:F2}, timeSinceJump:{timeSinceJump:F2}");
+
+            if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
             {
-                Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 能量 +2</color>");
+                Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！获取 2 格秩序能量奖励。</color>");
                 energySystem.AddEnergy(2); 
 
                 if (PlayerCombatVFX.Instance != null)
                     PlayerCombatVFX.Instance.TriggerDodgeVFX();
                 
                 if (CombatFeedbackManager.Instance != null)
-                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); // 用轻微震动反馈擦弹感
+                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
                 
                 return true;
             }

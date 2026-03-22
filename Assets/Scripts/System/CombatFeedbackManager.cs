@@ -22,7 +22,7 @@ public class CombatFeedbackManager : MonoBehaviour
     public float parryShakeForce = 2.0f;
     
     [Tooltip("受击时的震动强度")]
-    public float hitShakeForce = 1.0f;
+    public float hitShakeForce = 1.5f;
     
     [Tooltip("宕机处决时的震动强度（最强）")]
     public float executeShakeForce = 3.0f;

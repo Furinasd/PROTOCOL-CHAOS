@@ -11,6 +11,23 @@ public class PlayerEnergySystem : MonoBehaviour
     public int maxEnergyGrids = 3;
     public int currentEnergyGrids = 0;
 
+    [Header("🛡️ 环境保护 (Environmental Drain Protection)")]
+    private float lastEnvironmentalDrainTime = -10f;
+
+    /// <summary>
+    /// 环境持续扣能接口：带有内置冷却（3.0秒），防止重叠污染区导致瞬间被吸干
+    /// </summary>
+    public void TryEnvironmentalDrain(int amount, float interval = 3.0f)
+    {
+        if (Time.time - lastEnvironmentalDrainTime >= interval)
+        {
+            if (TryConsumeEnergy(amount))
+            {
+                lastEnvironmentalDrainTime = Time.time;
+            }
+        }
+    }
+
     /// <summary>
     /// 增加指定格数的能量
     /// </summary>
@@ -33,7 +50,7 @@ public class PlayerEnergySystem : MonoBehaviour
         if (currentEnergyGrids >= amount)
         {
             currentEnergyGrids -= amount;
-            Debug.Log($"<color=red>【消耗】消耗 {amount} 格秩序能量！剩余: {currentEnergyGrids} / {maxEnergyGrids} 格</color>");
+            Debug.Log($"<color=red>【消耗】消耗 {amount} 格秩序能量！剩余: {currentEnergyGrids} / {maxEnergyGrids} 格</color>\n调用源: {System.Environment.StackTrace}");
             return true;
         }
         return false;
