@@ -1,5 +1,15 @@
 {
   "dependencies": {
+    "com.besty.unity-skills": {
+      "version": "https://github.com/Besty0728/Unity-Skills.git?path=/SkillsForUnity",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.unity.timeline": "1.7.7"
+      },
+      "hash": "ddcf49b6d4363e7b7f6eb38dbc14f74afd4f41cd"
+    },
     "com.coplaydev.coplay": {
       "version": "https://github.com/CoplayDev/coplay-unity-plugin.git#beta",
       "depth": 0,

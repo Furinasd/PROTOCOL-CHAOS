@@ -49,8 +49,11 @@ public class PuddleManager : MonoBehaviour
     public ChaosPuddle GetPuddleFromPool(Vector3 position, Polarity polarity, bool isSpecial)
     {
         ChaosPuddle puddle = (pool.Count > 0) ? pool.Pop() : CreateNewPuddle();
+        // 【核心修复】：必须在 SetActive(true) 之前设置位置！
+        // 否则 Puddle 脚本会在 OnEnable 时记录对象池当前（通常是 0,0,0）的 Y 轴作为 originalY，
+        // 导致后续动画将污染区强行拉回地下，造成“瞬间消失”的假象。
+        puddle.transform.position = position; 
         puddle.gameObject.SetActive(true);
-        puddle.transform.position = position;
         puddle.Contaminate(polarity, isSpecial);
         return puddle;
     }

@@ -53,7 +53,7 @@ public class EnemyHitbox : MonoBehaviour
         // 计算实际的世界坐标中心点
         Vector3 worldCenter = transform.position + transform.TransformDirection(hitboxCenterOffset);
 
-        // 核心代码：执行 Box 相交检测
+        // 1. 核心区伤害判定 (正常受击与弹刀)
         Collider[] hits = Physics.OverlapBox(worldCenter, hitboxSize / 2f, transform.rotation, targetLayer);
 
         foreach (Collider hit in hits)
@@ -93,6 +93,22 @@ public class EnemyHitbox : MonoBehaviour
                 else
                 {
                     Debug.LogWarning("[EnemyHitbox] 弹刀成功，但未能找到怪物的 EnemyPosture 以触发晕眩！");
+                }
+            }
+        }
+
+        // 2. 边缘区/近失 (Graze) 判定：只用于捕捉那些用物理位移躲开核心区的玩家
+        // 扩大 1.5 倍判定框，专门奖励成功蹭破攻击边缘的玩家
+        Collider[] nearMisses = Physics.OverlapBox(worldCenter, hitboxSize * 0.75f, transform.rotation, targetLayer); // hitboxSize * 1.5f / 2f
+        foreach (Collider hit in nearMisses)
+        {
+            PlayerCombatReceiver receiver = hit.GetComponentInParent<PlayerCombatReceiver>();
+            if (receiver != null && !alreadyHitComponents.Contains(receiver))
+            {
+                // 如果刚好在冲刺/跳跃瞬间擦弹
+                if (receiver.CheckPerfectDodgeNearMiss())
+                {
+                    alreadyHitComponents.Add(receiver); // 同样记录防重复
                 }
             }
         }

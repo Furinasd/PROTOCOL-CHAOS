@@ -184,6 +184,9 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
         currentHP -= calculatedDamage;
 
+        // 【补全反馈】：即便未被吸收，受到真实伤害（异色/中性）时也应触发物理击退，防止受击感太轻
+        ApplyKnockback(attack.sourcePosition);
+
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
@@ -202,11 +205,12 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
     private void ApplyKnockback(Vector3 attackerPos)
     {
-        Vector3 knockbackDir = (transform.position - attackerPos).normalized;
-        knockbackDir.y = 0;
+        Vector3 knockbackDir = transform.position - attackerPos;
+        knockbackDir.y = 0; // 先移除垂直分量
+        knockbackDir.Normalize(); // 再归一化，保证水平力度充足
         
-        // 调用真实的物理击退接口
-        controller.AddKnockback(knockbackDir, 12f);
+        // 调用真实的物理击退接口，稍微增加力度以强化“代价”感知
+        controller.AddKnockback(knockbackDir, 15f);
         Debug.Log($"[PlayerCombatReceiver] 物理击退启动方: {knockbackDir}");
     }
 
@@ -227,5 +231,33 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// 用于处理“物理空间规避 (Near Miss)”——玩家闪出了怪物的命中核心区，但仍在边缘蹭过，
+    /// 此时不会调用 TakeDamage（因为没被打中），但我们要给他发放完美闪避的能量奖励！
+    /// </summary>
+    public bool CheckPerfectDodgeNearMiss()
+    {
+        if (controller.IsDodging || controller.IsJumping)
+        {
+            float timeSinceDash = Time.time - controller.LastDashTime;
+            float timeSinceJump = Time.time - controller.LastJumpTime;
+            
+            if (timeSinceDash <= 0.25f || timeSinceJump <= 0.25f)
+            {
+                Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 能量 +2</color>");
+                energySystem.AddEnergy(2); 
+
+                if (PlayerCombatVFX.Instance != null)
+                    PlayerCombatVFX.Instance.TriggerDodgeVFX();
+                
+                if (CombatFeedbackManager.Instance != null)
+                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); // 用轻微震动反馈擦弹感
+                
+                return true;
+            }
+        }
+        return false;
     }
 }

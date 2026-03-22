@@ -36,8 +36,16 @@ public class EnemyAttackBrain : MonoBehaviour
     public float baseDamage = 10f;
     public float basePostureDamage = 20f;
 
-    [Header("🧪 环境预制体")]
+    [Header("🧪 环境污染生成控制 (Chaos Puddle)")]
     public GameObject chaosPuddlePrefab;
+    [Tooltip("每次攻击生成污染区的基础概率 (0-1)")]
+    public float puddleSpawnProbability = 1.0f;
+    [Tooltip("污染区生成为特殊高亮形态的概率 (0-1)")]
+    public float puddleSpecialProbability = 0.3f;
+    [Tooltip("污染区大小随机下限")]
+    public float puddleSizeMultiplierMin = 0.8f;
+    [Tooltip("污染区大小随机上限")]
+    public float puddleSizeMultiplierMax = 1.2f;
 
     private EnemyVisualController visualController;
     private EnemyShapeMorpher shapeMorpher;
@@ -175,6 +183,13 @@ public class EnemyAttackBrain : MonoBehaviour
     {
         if (playerTransform == null) return;
 
+        // 【新规：概率控制判定】
+        if (Random.value > puddleSpawnProbability)
+        {
+            Debug.Log("<color=grey>判定：本次攻击不生成污染区。</color>");
+            return;
+        }
+
         // 【新规】：在攻击瞬间玩家所在位置生成
         Vector3 spawnPos = playerTransform.position; 
         Debug.Log($"<color=white>🔍 [Brain] 尝试在玩家位置 {spawnPos} 下方生成污染区...</color>");
@@ -190,12 +205,11 @@ public class EnemyAttackBrain : MonoBehaviour
                 
                 if (PuddleManager.Instance != null)
                 {
-                    // 30%概率生成特殊污染区
-                    bool isSpecial = Random.value <= 0.3f;
-                    // 略微调小一点防止铺场过快
-                    float sizeMultiplier = Random.Range(0.8f, 1.2f);
+                    // 按照面板配置决定生成类型
+                    bool isSpecial = Random.value <= puddleSpecialProbability;
+                    float sizeMultiplier = Random.Range(puddleSizeMultiplierMin, puddleSizeMultiplierMax);
                     
-                    // 【新规】：传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
+                    // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
                     ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
                     
                     // 应用缩放
@@ -255,6 +269,9 @@ public class EnemyAttackBrain : MonoBehaviour
             blueSmashHitbox.ActivateHitbox(pd);
             yield return new WaitForSeconds(0.15f);
             blueSmashHitbox.DeactivateHitbox();
+
+            // 【补全逻辑】：紫光态攻击后同样按照概率生成污染区，确保反馈一致性
+            TrySpawnChaosPuddle(Polarity.Neutral);
 
             visualController.ResetVisual();
             shapeMorpher.ResetShape(0.1f);

@@ -314,9 +314,6 @@ public class PlayerController : MonoBehaviour
         lastDashTime = Time.time;
         velocity.y = 0f; // 冲刺期间不受重力影响
 
-        // 【修复冲刺掉出地图Bug】不再使用缩放整个物体的Hack方式，这会导致CharacterController变小进而直接掉出地板穿模
-        // transform.localScale = new Vector3(1f, 0.5f, 1f);
-
         Vector3 dashDir = transform.forward; // 默认向前冲刺
         // 如果有输入，则朝输入方向冲刺
         float h = Keyboard.current.dKey.ReadValue() - Keyboard.current.aKey.ReadValue();
@@ -327,20 +324,38 @@ public class PlayerController : MonoBehaviour
              transform.rotation = Quaternion.LookRotation(dashDir);
         }
 
-        float startTime = Time.time;
-        while (Time.time < startTime + dashDuration)
+        // 视效增强：形变 (Squash and Stretch)
+        if (visualRoot != null)
         {
+            Vector3 origScale = visualRoot.localScale;
+            // 【修复屏幕被向下拉的抖动问题】不再压缩 Y 轴，只压扁 X 轴并拉长 Z 轴，防止由于高度变化导致的 Cinemachine 锁定点疯狂下坠
+            visualRoot.DOScale(new Vector3(origScale.x * 0.7f, origScale.y * 1.0f, origScale.z * 1.5f), dashDuration * 0.3f)
+                .SetEase(Ease.OutExpo)
+                .OnComplete(() => {
+                    visualRoot.DOScale(origScale, dashDuration * 0.7f).SetEase(Ease.OutBounce);
+                });
+        }
+
+        float elapsed = 0f;
+        while (elapsed < dashDuration)
+        {
+            elapsed += Time.deltaTime;
             // 增加安全检测：如果冲刺中途触发了边界吸回逻辑，立即中断位移
             if (isProcessingOutOfBounds) break;
 
-            // 【修复跳跃失灵手感】冲刺期间赋予微量稳定向下的力，确保 CharacterController.isGrounded 不会在平地上闪烁丢失，保证能顺滑接跳跃
-            cc.Move((dashDir * dashSpeed + Vector3.down * 4f) * Time.deltaTime);
+            // 物理增强：阻力缓动 (Ease-Out) 曲线，替代原来的匀速冲刺，手感更干脆
+            float t = elapsed / dashDuration;
+            // speed 从 dashSpeed*1.5 快速衰减到 dashSpeed*0.2
+            float currentSpeed = Mathf.Lerp(dashSpeed * 1.5f, dashSpeed * 0.2f, t * t); // 使用 t*t 产生类似 easeOutQuad 的减速感
+            
+            // 【修复玩家下坠与跳跃平滑度】不再强制施加 Vector3.down * 4f 这会导致陡坡异常下坠和相机剧烈抖动
+            // 改为仅保留角色控制器所需的极微小贴地力(Vector3.down * 0.5f)即可保证 isGrounded
+            cc.Move((dashDir * currentSpeed + Vector3.down * 0.5f) * Time.deltaTime);
             yield return null;
         }
 
         // 冲刺结束后的安全重置
         velocity.y = -2f; // 强制给一个向下贴地力，防止冲刺由于斜坡导致的“飞出”
-        // transform.localScale = Vector3.one;
         currentState = PlayerState.Normal;
     }
 

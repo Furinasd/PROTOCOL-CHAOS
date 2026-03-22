@@ -4,28 +4,33 @@ using DG.Tweening;
 
 // ==========================================
 // Title: 混沌地板节点 (Grid Contamination 方案B)
-// Author: 白糖 & 精灵小姐
-// Description: 直接挂载在 PCG 地板上的污染组件。纯粹的风险区（强制规避），特殊区保留风险但提供极高弹刀收益。
+// Author: 白糖 & 精灵小姐 (Redesigned by Antigravity)
+// Description: 直接挂载在 PCG 地板上的污染组件。
+//              【重构版】：增加 LineRenderer 和 Point Light 以在 URP 中实现 100% 可见度。
 // ==========================================
 public class ChaosPuddle : MonoBehaviour
 {
     [Header("🎨 污染属性")]
     public bool isContaminated = false;
-    public bool isCoreAnomaly = false; // 是否为30%概率的"异常源核心区"
+    public bool isCoreAnomaly = false; 
     public Polarity puddlePolarity;
 
-    [Header("⚙️ 惩罚数值 (所有极性一致)")]
+    [Header("⚙️ 惩罚数值")]
     public float damagePerSecond = 15f; 
-    public float speedMultiplier = 0.5f; // 减速惩罚比例
-    public int energyDrainPerSecond = 1; // 每秒抽取的秩序能量
+    public float speedMultiplier = 0.5f; 
+    public int energyDrainPerSecond = 1; 
 
-    [Header("表现层 (需在 PCG 生成时或 Inspector 赋值)")]
+    [Header("表现层 (需在 Prefab 或 Inspector 赋值)")]
     public Material normalFloorMat;
-    [UnityEngine.Serialization.FormerlySerializedAs("blueHazardMat")]
-    public Material purpleHazardMat; // 唯一的普通污染区紫色材质
-    public Material anomalyCoreMat; // 核心高光材质
+    public Material purpleHazardMat; 
+    public Material anomalyCoreMat; 
 
+    // 增强组件
+    private LineRenderer lineRenderer;
+    private Light glowLight;
+    private ParticleSystem particles;
     private MeshRenderer meshRenderer;
+
     private PlayerCombatReceiver currentPlayerInside = null;
     private PlayerEnergySystem playerEnergy = null;
     private PlayerController playerMovement = null;
@@ -33,24 +38,56 @@ public class ChaosPuddle : MonoBehaviour
 
     private void Awake()
     {
-        // 【优先搜索】显式命名的视觉子物体，避免获取到根节点的冗余渲染器
+        // 1. 获取基础渲染器
         Transform visualT = transform.Find("PuddleVisual");
         if (visualT != null)
         {
             meshRenderer = visualT.GetComponent<MeshRenderer>();
-            // 【重要修复】将 Quad 翻转至正面朝上，解决因为 270 度导致的背面剔除 (Cull Back) 透明问题
-            visualT.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            visualT.localRotation = Quaternion.Euler(-90f, 0f, 0f); 
         }
-        
         if (meshRenderer == null) meshRenderer = GetComponentInChildren<MeshRenderer>();
+
+        // 2. 动态获取/添加增强组件
+        lineRenderer = GetComponent<LineRenderer>();
+        if (lineRenderer == null) lineRenderer = gameObject.AddComponent<LineRenderer>();
         
-        if (meshRenderer == null) Debug.LogWarning("<color=red>🛑 [Puddle] 未找到 MeshRenderer，污染区将不可见！</color>");
+        glowLight = GetComponent<Light>();
+        if (glowLight == null) glowLight = gameObject.AddComponent<Light>();
+
+        particles = GetComponentInChildren<ParticleSystem>();
+
+        SetupVisualComponents();
+    }
+
+    private void SetupVisualComponents()
+    {
+        lineRenderer.useWorldSpace = false;
+        lineRenderer.startWidth = 0.08f;
+        lineRenderer.endWidth = 0.08f;
+        lineRenderer.positionCount = 37;
+        lineRenderer.loop = true;
+        lineRenderer.material = purpleHazardMat; 
+        lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+        glowLight.type = LightType.Point;
+        glowLight.range = 4f;
+        glowLight.intensity = 0f;
+        glowLight.shadows = LightShadows.None;
+
+        float radius = 1.0f; 
+        for (int i = 0; i < 37; i++)
+        {
+            float angle = i * 10f * Mathf.Deg2Rad;
+            lineRenderer.SetPosition(i, new Vector3(Mathf.Sin(angle) * (radius * 1.05f), 0.05f, Mathf.Cos(angle) * (radius * 1.05f)));
+        }
+
+        lineRenderer.enabled = false;
+        glowLight.enabled = false;
     }
 
     private void OnEnable()
     {
         PuddleManager.OnGlobalPurify += Purify;
-        // 每次从对象池取出时，重新记录原始 Y 轴
         originalY = transform.position.y;
     }
 
@@ -61,33 +98,48 @@ public class ChaosPuddle : MonoBehaviour
         transform.DOKill();
     }
 
-    public void Contaminate(Polarity polarity, bool isSpecial, float duration = 8f)
+    public void Contaminate(Polarity polarity, bool isSpecial)
     {
         if (isContaminated) return;
 
         isContaminated = true;
-        // 极性仅作记录，视觉统一为紫色
         puddlePolarity = polarity;
         isCoreAnomaly = isSpecial;
+        originalY = transform.position.y;
 
-        Debug.Log($"<color=cyan>🌊 [Puddle] 污染区初始化: 极性={polarity}, 特殊={isSpecial}</color>");
+        Debug.Log($"<color=cyan>🌊 [Puddle] 污染区初始化: 极性={polarity}, 特殊={isSpecial} at Y={originalY}</color>");
+
+        Color highlightColor = isCoreAnomaly ? Color.white : new Color(0.8f, 0.4f, 1.0f); 
 
         if (meshRenderer != null)
         {
             meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : purpleHazardMat;
-        
-            // 【重要修复】：将动画坐标修正为+0.3f向上漂浮，防止面片陷入 Ground 层导致不可见
+            
             Sequence seq = DOTween.Sequence();
-            seq.Append(transform.DOMoveY(originalY + 0.3f, 0.1f).SetEase(Ease.OutFlash));
-            seq.Join(meshRenderer.material.DOColor(Color.white, 0.1f).SetLoops(2, LoopType.Yoyo));
-            seq.Append(transform.DOMoveY(originalY, 0.2f).SetEase(Ease.OutBounce));
-        }
-        else
-        {
-            Debug.LogWarning("<color=red>🛑 [Puddle] MeshRenderer 为空，污染区将不可见！</color>");
+            seq.Append(transform.DOMoveY(originalY + 0.4f, 0.1f).SetEase(Ease.OutFlash));
+            
+            // 动画反馈
+            lineRenderer.enabled = true;
+            glowLight.enabled = true;
+            glowLight.color = highlightColor;
+            
+            lineRenderer.material.DOColor(highlightColor, "_BaseColor", 0.2f);
+            DOTween.To(() => glowLight.intensity, x => glowLight.intensity = x, 2.5f, 0.2f);
+
+            if (meshRenderer.material.HasProperty("_BaseColor"))
+            {
+                seq.Join(meshRenderer.material.DOColor(highlightColor, "_BaseColor", 0.1f).SetLoops(2, LoopType.Yoyo));
+            }
+
+            seq.Append(transform.DOMoveY(originalY + 0.05f, 0.2f).SetEase(Ease.OutBounce)); 
         }
 
-        StartCoroutine(PurifyAfterTime(duration));
+        if (particles != null)
+        {
+            var main = particles.main;
+            main.startColor = isCoreAnomaly ? Color.white : (Color)highlightColor;
+            particles.Play();
+        }
     }
 
     public void Purify()
@@ -97,43 +149,30 @@ public class ChaosPuddle : MonoBehaviour
         isContaminated = false;
         isCoreAnomaly = false;
         
-        meshRenderer.material = normalFloorMat;
+        if (meshRenderer != null) meshRenderer.material = normalFloorMat;
+        if (lineRenderer != null) lineRenderer.enabled = false;
+        if (glowLight != null) glowLight.enabled = false;
+        if (particles != null) particles.Stop();
 
-        // 执行回收表现
-        transform.DOMoveY(originalY, 0.4f).SetEase(Ease.InOutQuad).OnComplete(() => {
+        transform.DOMoveY(originalY - 0.5f, 0.4f).SetEase(Ease.InQuad).OnComplete(() => {
             if (PuddleManager.Instance != null)
                 PuddleManager.Instance.ReturnToPool(this);
             else
                 gameObject.SetActive(false);
         });
 
-        if (playerMovement != null)
-        {
-            playerMovement.environmentalSpeedMultiplier = 1f; 
-        }
-    }
-
-    private IEnumerator PurifyAfterTime(float duration)
-    {
-        yield return new WaitForSeconds(duration);
-        Purify();
+        if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f; 
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (!isContaminated) return;
-        
         if (other.CompareTag("Player"))
         {
-            Debug.Log($"<color=orange>🎯 [Puddle] 玩家进入污染区范围！</color>");
             currentPlayerInside = other.GetComponent<PlayerCombatReceiver>();
             playerMovement = other.GetComponent<PlayerController>();
             playerEnergy = other.GetComponent<PlayerEnergySystem>();
-            
-            if (currentPlayerInside != null && isCoreAnomaly)
-            {
-                currentPlayerInside.isStandingOnAnomalyCore = true; 
-            }
+            if (currentPlayerInside != null && isCoreAnomaly) currentPlayerInside.isStandingOnAnomalyCore = true; 
         }
     }
 
@@ -141,44 +180,24 @@ public class ChaosPuddle : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            Debug.Log($"<color=gray>🍃 [Puddle] 玩家离开污染区范围。</color>");
-            if (currentPlayerInside != null && isCoreAnomaly)
-            {
-                currentPlayerInside.isStandingOnAnomalyCore = false;
-            }
-            
+            if (currentPlayerInside != null && isCoreAnomaly) currentPlayerInside.isStandingOnAnomalyCore = false;
             if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f;
-
             currentPlayerInside = null;
             playerEnergy = null;
             playerMovement = null;
         }
     }
 
-    /// <summary>
-    /// 外部调用以动态调整污染区大小
-    /// </summary>
     public void ApplySizeMultiplier(float multiplier)
     {
-        // 保持 Y 轴缩放为 1，仅调整 XZ 平面
         transform.localScale = new Vector3(5.0f * multiplier, 1f, 5.0f * multiplier);
     }
 
     private void Update()
     {
         if (!isContaminated || currentPlayerInside == null || playerMovement == null) return;
-
-        // 统一环境压制：扣血 + 减速 + 抽能
         currentPlayerInside.currentHP -= damagePerSecond * Time.deltaTime;
         playerMovement.environmentalSpeedMultiplier = speedMultiplier; 
-
-        if (playerEnergy != null)
-        {
-            // 抽能逻辑：每秒损失对应格数
-            if (Time.frameCount % 60 == 0) // 粗略每秒一次，避免太过频繁但保持压力
-            {
-                playerEnergy.TryConsumeEnergy(energyDrainPerSecond);
-            }
-        }
+        if (playerEnergy != null && Time.frameCount % 60 == 0) playerEnergy.TryConsumeEnergy(energyDrainPerSecond);
     }
 }
