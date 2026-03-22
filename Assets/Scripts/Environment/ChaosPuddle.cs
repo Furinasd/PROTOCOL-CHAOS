@@ -169,9 +169,16 @@ public class ChaosPuddle : MonoBehaviour
                 gameObject.SetActive(false);
         });
 
-        if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f; 
+        ClearPlayerReference();
+    }
 
-        // 清理引用
+    private void ClearPlayerReference()
+    {
+        if (playerMovement != null)
+        {
+            playerMovement.UnregisterPuddle(this);
+            if (isCoreAnomaly && currentPlayerInside != null) currentPlayerInside.isStandingOnAnomalyCore = false;
+        }
         currentPlayerInside = null;
         playerEnergy = null;
         playerMovement = null;
@@ -182,10 +189,18 @@ public class ChaosPuddle : MonoBehaviour
         if (!isContaminated) return;
         if (other.CompareTag("Player"))
         {
-            currentPlayerInside = other.GetComponent<PlayerCombatReceiver>();
-            playerMovement = other.GetComponent<PlayerController>();
-            playerEnergy = other.GetComponent<PlayerEnergySystem>();
-            if (currentPlayerInside != null && isCoreAnomaly) currentPlayerInside.isStandingOnAnomalyCore = true; 
+            PlayerController pc = other.GetComponentInParent<PlayerController>();
+            if (pc != null)
+            {
+                playerMovement = pc;
+                currentPlayerInside = pc.GetComponent<PlayerCombatReceiver>();
+                playerEnergy = pc.GetComponent<PlayerEnergySystem>();
+                
+                pc.RegisterPuddle(this);
+                if (isCoreAnomaly && currentPlayerInside != null) currentPlayerInside.isStandingOnAnomalyCore = true;
+                
+                // Debug.Log($"<color=cyan>🌊 [Puddle] 玩家进入污染区: {gameObject.name}</color>");
+            }
         }
     }
 
@@ -193,11 +208,8 @@ public class ChaosPuddle : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            if (currentPlayerInside != null && isCoreAnomaly) currentPlayerInside.isStandingOnAnomalyCore = false;
-            if (playerMovement != null) playerMovement.environmentalSpeedMultiplier = 1f;
-            currentPlayerInside = null;
-            playerEnergy = null;
-            playerMovement = null;
+            Debug.Log($"<color=white>🌊 [Puddle] 玩家离开污染区: {gameObject.name}</color>");
+            ClearPlayerReference();
         }
     }
 
@@ -210,13 +222,32 @@ public class ChaosPuddle : MonoBehaviour
     {
         if (!isContaminated || currentPlayerInside == null || playerMovement == null) return;
 
-        currentPlayerInside.currentHP -= damagePerSecond * Time.deltaTime;
-        playerMovement.environmentalSpeedMultiplier = speedMultiplier; 
-
-        if (playerEnergy != null) 
+        // 【安全卫兵】：如果距离过远却没触发 Exit (由于物理步长、快速位移或 Reload)，在此强行断开。
+        // 目前半径基础是 2.5m (scale 5)，给予一定冗余（约1.5倍）。
+        float dist = Vector3.Distance(transform.position, playerMovement.transform.position);
+        float limit = 2.5f * (transform.localScale.x / 5.0f) * 1.5f; 
+        if (dist > limit)
         {
-            // 使用能量系统内置的保护接口，每3秒扣除一次，且多区域重叠不翻倍
-            playerEnergy.TryEnvironmentalDrain(energyDrainPerSecond, 3.0f);
+            Debug.Log($"<color=grey>🌊 [Puddle] 距离超限限制，已强行断开污染区判定 (Dist:{dist:F2} > Limit:{limit:F2})</color>");
+            ClearPlayerReference();
+            return;
         }
+
+        // 【修复 Bug 1】：防止静默扣成僵尸
+        float damage = damagePerSecond * Time.deltaTime;
+        if (currentPlayerInside.currentHP - damage <= 0)
+        {
+            // 确保触发死亡序列，而不是静默扣到负数
+            currentPlayerInside.currentHP = 0;
+            Debug.Log("<color=red>☠️ [Puddle] 污染区将玩家 HP 扣至 0</color>");
+        }
+        else
+        {
+            currentPlayerInside.currentHP -= damage;
+        }
+        playerMovement.environmentalSpeedMultiplier = speedMultiplier;
+
+        // 能量扣除逻辑已重构至 PlayerEnergySystem.Update
+        // 不再由每个 Puddle 节点单独操作，防止重叠计算。
     }
 }

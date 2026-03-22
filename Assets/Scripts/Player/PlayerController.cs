@@ -58,7 +58,32 @@ public class PlayerController : MonoBehaviour
 
     // 状态机枚举
     public enum PlayerState { Normal, Jumping, Dashing, Hitlag }
-    public PlayerState currentState = PlayerState.Normal;
+    private PlayerState currentState = PlayerState.Normal;
+    public PlayerState GetState() => currentState;
+
+    // ---------------------------------------------------------
+    // 【环境系统】：维护当前所在的污染区列表，确保叠层逻辑正确
+    // ---------------------------------------------------------
+    private HashSet<ChaosPuddle> puddlesInside = new HashSet<ChaosPuddle>();
+    public void RegisterPuddle(ChaosPuddle p) { 
+        if (!puddlesInside.Contains(p)) puddlesInside.Add(p); 
+        UpdateEnvironmentalConditions();
+    }
+    public void UnregisterPuddle(ChaosPuddle p) { 
+        if (puddlesInside.Contains(p)) puddlesInside.Remove(p); 
+        UpdateEnvironmentalConditions();
+    }
+    private void UpdateEnvironmentalConditions() {
+        // 只要处在至少一个污染区，就维持减速。所有人离开后归 1。
+        environmentalSpeedMultiplier = (puddlesInside.Count > 0) ? 0.5f : 1.0f;
+
+        // 【新规】：同步给能量系统计时器
+        PlayerEnergySystem energy = GetComponent<PlayerEnergySystem>();
+        if (energy != null)
+        {
+            energy.SetInPuddle(puddlesInside.Count > 0);
+        }
+    }
     private PlayerState previousStateBeforeHitlag = PlayerState.Normal;
     private Coroutine hitlagCoroutine;
 
@@ -90,7 +115,7 @@ public class PlayerController : MonoBehaviour
         // 【新规：重力与掉落检测】
         if (transform.position.y < -15f)
         {
-            ResetLevel();
+            TriggerFallDeath();
             return;
         }
 
@@ -146,7 +171,14 @@ public class PlayerController : MonoBehaviour
         
         yield return new WaitForSecondsRealtime(0.5f);
         
-        ResetLevel();
+        TriggerFallDeath();
+    }
+
+    private void TriggerFallDeath()
+    {
+        PlayerCombatReceiver receiver = GetComponent<PlayerCombatReceiver>();
+        if (receiver != null) receiver.Die();
+        else ResetLevel(); // Fallback
     }
 
     #region 移动与 3C 手感 (Movement & Gravity)
@@ -391,6 +423,12 @@ public class PlayerController : MonoBehaviour
     private void ResetLevel()
     {
         Debug.Log("<color=red>💀 [System] 坠入深渊/脱离核心区... 秩序重置。</color>");
+        
+        // 【核心修复】：SceneManager.LoadScene 不会自动重置 Time.timeScale。
+        // 如果在顿帧(Hitlag)中途触发重置，会导致新场景卡在慢动作下，影响输入判定。
+        Time.timeScale = 1f;
+        DOTween.KillAll();
+        
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     #endregion

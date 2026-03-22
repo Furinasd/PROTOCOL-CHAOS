@@ -91,5 +91,9 @@ public class EnemyPosture : MonoBehaviour
     {
         currentHP = Mathf.Max(0, currentHP - damage);
         Debug.Log($"【系统】怪物受到伤害，剩余生命值: {currentHP} / {maxHP}");
+        
+        // 【新规：UI 反馈】同步触发 Boss 血条抖动
+        if (CombatHUDManager.Instance != null)
+            CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: false);
     }
 }

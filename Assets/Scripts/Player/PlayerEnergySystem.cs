@@ -12,20 +12,42 @@ public class PlayerEnergySystem : MonoBehaviour
     public int currentEnergyGrids = 0;
 
     [Header("🛡️ 环境保护 (Environmental Drain Protection)")]
-    private float lastEnvironmentalDrainTime = -10f;
+    private float environmentalTimer = 0f;
+    private bool isInPuddle = false;
 
-    /// <summary>
-    /// 环境持续扣能接口：带有内置冷却（3.0秒），防止重叠污染区导致瞬间被吸干
-    /// </summary>
-    public void TryEnvironmentalDrain(int amount, float interval = 3.0f)
+    private void Update()
     {
-        if (Time.time - lastEnvironmentalDrainTime >= interval)
+        // 判定玩家在污染区内时从 0 开始记时，每 3 秒扣除一格能量
+        if (isInPuddle)
         {
-            if (TryConsumeEnergy(amount))
+            environmentalTimer += Time.deltaTime;
+            if (environmentalTimer >= 3.0f)
             {
-                lastEnvironmentalDrainTime = Time.time;
+                if (TryConsumeEnergy(1))
+                {
+                    Debug.Log("<color=red>【环境】在污染区停留满 3 秒，扣除 1 格能量。</color>");
+                }
+                environmentalTimer = 0f; // 重新计息
             }
         }
+    }
+
+    /// <summary>
+    /// 设置是否在污染区内，进入时重置计时器
+    /// </summary>
+    public void SetInPuddle(bool inPuddle)
+    {
+        if (inPuddle && !isInPuddle)
+        {
+            environmentalTimer = 0f; // 进入瞬间从 0 开始计时
+            Debug.Log("<color=cyan>【环境】进入污染区，计时开始。</color>");
+        }
+        else if (!inPuddle && isInPuddle)
+        {
+            environmentalTimer = 0f; // 离开瞬间重置
+            Debug.Log("<color=white>【环境】离开污染区，计时归零。</color>");
+        }
+        isInPuddle = inPuddle;
     }
 
     /// <summary>
@@ -50,7 +72,7 @@ public class PlayerEnergySystem : MonoBehaviour
         if (currentEnergyGrids >= amount)
         {
             currentEnergyGrids -= amount;
-            Debug.Log($"<color=red>【消耗】消耗 {amount} 格秩序能量！剩余: {currentEnergyGrids} / {maxEnergyGrids} 格</color>\n调用源: {System.Environment.StackTrace}");
+            Debug.Log($"<color=red>【消耗】消耗 {amount} 格秩序能量！剩余: {currentEnergyGrids} / {maxEnergyGrids} 格</color>");
             return true;
         }
         return false;

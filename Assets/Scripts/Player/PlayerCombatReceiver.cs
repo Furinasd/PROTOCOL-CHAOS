@@ -20,8 +20,9 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     public float maxHP = 100f;
     public float currentHP = 100f;
 
-    [Header("⚔️ 弹刀反伤参数")]
+    [Header("⚔️ 弹刀/对冲参数")]
     public float parryCounterPostureDamage = 50f;
+    public int parryEnergyCost = 3; // 可在 Inspector 调整消耗 (设计稿默认为 3)
 
     // 状态标记
     public bool isStandingOnAnomalyCore = false;
@@ -62,23 +63,20 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         
         // ---------------------------------------------------------
         // 轨道 1：空间规避 (Spatial Evasion) - 充能手段
+        // 【修复】：不再依赖 IsDodging/IsJumping 状态（Hitlag 会清空它们），
+        //           改为直接检查"最后一次 Dash/Jump 距今是否在 0.3s 内"。
         // ---------------------------------------------------------
-        if (controller.IsDodging || controller.IsJumping)
+        float timeSinceDash = Time.time - controller.LastDashTime;
+        float timeSinceJump = Time.time - controller.LastJumpTime;
+        if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
         {
-            float timeSinceDash = Time.time - controller.LastDashTime;
-            float timeSinceJump = Time.time - controller.LastJumpTime;
-            
-            // 判定窗口：0.3s (设计稿要求)
-            if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
-            {
-                Debug.Log("<color=white>💨 完美规避！获取 2 格秩序能量奖励。</color>");
-                energySystem.AddEnergy(2); 
+            Debug.Log($"<color=white>💨 完美规避！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 获取 2 格秩序能量。</color>");
+            energySystem.AddEnergy(2); 
 
-                if (PlayerCombatVFX.Instance != null) PlayerCombatVFX.Instance.TriggerDodgeVFX();
-                if (CombatFeedbackManager.Instance != null) CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
-                
-                return false; // 规避成功
-            }
+            if (PlayerCombatVFX.Instance != null) PlayerCombatVFX.Instance.TriggerDodgeVFX();
+            if (CombatFeedbackManager.Instance != null) CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
+            
+            return false; // 规避成功
         }
 
         // ---------------------------------------------------------
@@ -89,10 +87,10 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
         if (isBlocking && isDifferentPolarity)
         {
-            // 执行条件：必须消耗 3 格秩序能量
-            if (energySystem.currentEnergyGrids >= 3)
+            // 执行条件：消耗配置的能量格
+            if (energySystem.currentEnergyGrids >= parryEnergyCost)
             {
-                energySystem.TryConsumeEnergy(3);
+                energySystem.TryConsumeEnergy(parryEnergyCost);
                 Debug.Log("<color=cyan>✨ 极性湮灭！成功弹刀异色攻击！</color>");
                 
                 if (CombatFeedbackManager.Instance != null)
@@ -160,18 +158,42 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
+        // 【新规：UI 反馈】同步触发血条抖动
+        if (CombatHUDManager.Instance != null)
+            CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: true);
+
         controller.EnterHitlag(0.2f);
 
         // 阵亡检测
         if (currentHP <= 0)
         {
-            Debug.Log("<color=red>💀 玩家阵亡！正在重新加载场景...</color>");
-            Time.timeScale = 1f;
-            DOTween.KillAll(); 
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            Die();
         }
 
         return false;
+    }
+
+    public void Die()
+    {
+        if (currentHP > 0) currentHP = 0;
+        
+        Debug.Log("<color=red>💀 玩家阵亡！触发游戏结束序列...</color>");
+        
+        // 恢复时间缩放并清理缓动
+        Time.timeScale = 1f;
+        DOTween.KillAll(); 
+
+        // 触发 UI 渐暗与重启按钮 (补全逻辑)
+        if (GameOverManager.Instance != null)
+        {
+            GameOverManager.Instance.TriggerGameOver();
+        }
+        else
+        {
+            // 如果场景中没有 GameOverManager，则回退到直接重开
+            Debug.LogWarning("[PlayerCombatReceiver] GameOverManager not found, falling back to instant reload.");
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
     }
 
     private void ApplyKnockback(Vector3 attackerPos)
