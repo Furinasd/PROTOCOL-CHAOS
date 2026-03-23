@@ -105,6 +105,24 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                         // 基础反伤，核心区加成
                         float finalDamage = parryCounterPostureDamage * (isStandingOnAnomalyCore ? 2f : 1f);
                         sourcePosture.AddPosture(finalDamage);
+
+                        if (isStandingOnAnomalyCore)
+                        {
+                            // 特殊污染区内弹刀成功：究极反馈链路
+                            energySystem.AddEnergy(1);
+                            if (CombatFeedbackManager.Instance != null)
+                                CombatFeedbackManager.Instance.TriggerAnomalyCoreParryFeedback();
+
+                            if (PlayerCombatVFX.Instance != null)
+                                PlayerCombatVFX.Instance.TriggerAbsorptionVFX(new Color(1f, 0.2f, 1f, 1f));
+
+                            sourcePosture.TriggerAnomalyCoreParryUIFeedback();
+                            Debug.Log("<color=magenta>✴ 核心污染区弹刀成功：触发究极秩序反制！</color>");
+                        }
+                        else if (CombatHUDManager.Instance != null)
+                        {
+                            CombatHUDManager.Instance.ForceRefreshBossUI();
+                        }
                     }
                 }
 

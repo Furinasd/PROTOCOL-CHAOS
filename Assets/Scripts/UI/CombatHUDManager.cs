@@ -23,6 +23,8 @@ public class CombatHUDManager : MonoBehaviour
     public GameObject bossHUDParent;
     public Image bossHPFill;
     public Image bossHPEaseFill;
+    public Image bossPostureFill;
+    public Image bossPostureEaseFill;
 
     private PlayerCombatReceiver playerReceiver;
     private EnemyPosture bossPosture;
@@ -46,14 +48,15 @@ public class CombatHUDManager : MonoBehaviour
 
         GameObject bossObj = GameObject.FindGameObjectWithTag("Enemy");
         if (bossObj != null) bossPosture = bossObj.GetComponent<EnemyPosture>();
+        if (bossPosture == null) bossPosture = FindFirstObjectByType<EnemyPosture>();
         
-        if (bossHUDParent != null) bossHUDParent.SetActive(bossObj != null);
+        if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null);
     }
 
     private void Update()
     {
         // 如果引用丢失（如场景重载），尝试重新获取
-        if (playerReceiver == null) RefreshReferences();
+        if (playerReceiver == null || bossPosture == null) RefreshReferences();
 
         UpdatePlayerHUD();
         UpdateBossHUD();
@@ -83,6 +86,35 @@ public class CombatHUDManager : MonoBehaviour
         {
             bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.deltaTime * 3f);
         }
+
+        if (bossPostureFill != null)
+        {
+            float postureTarget = bossPosture.PosturePercentage;
+            bossPostureFill.fillAmount = postureTarget;
+
+            if (bossPostureEaseFill != null && bossPostureEaseFill.fillAmount > postureTarget)
+            {
+                bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.deltaTime * 5f);
+            }
+        }
+    }
+
+    public void ForceRefreshBossUI()
+    {
+        if (bossPosture == null) RefreshReferences();
+        if (bossPosture == null) return;
+
+        if (bossHPFill != null)
+            bossHPFill.fillAmount = Mathf.Clamp01(bossPosture.currentHP / bossPosture.maxHP);
+
+        if (bossHPEaseFill != null)
+            bossHPEaseFill.fillAmount = Mathf.Clamp01(bossPosture.currentHP / bossPosture.maxHP);
+
+        if (bossPostureFill != null)
+            bossPostureFill.fillAmount = bossPosture.PosturePercentage;
+
+        if (bossPostureEaseFill != null)
+            bossPostureEaseFill.fillAmount = bossPosture.PosturePercentage;
     }
 
     public void TriggerGlitchEffect(bool isPlayer)

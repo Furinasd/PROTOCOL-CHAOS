@@ -13,6 +13,16 @@ public class EnemyPosture : MonoBehaviour
     public float currentHP = 200f;
 
     public float HealthPercentage => currentHP / maxHP;
+    public float PosturePercentage => maxPosture <= 0f ? 0f : Mathf.Clamp01(currentPosture / maxPosture);
+
+    private void Awake()
+    {
+        // 保底挂载头顶双条 UI，避免场景重构后漏配组件。
+        if (GetComponent<EnemyWorldHUD>() == null)
+        {
+            gameObject.AddComponent<EnemyWorldHUD>();
+        }
+    }
 
     // 当被打满时抛出事件，供处决系统监听
     public delegate void PostureBrokenHandler();
@@ -23,6 +33,7 @@ public class EnemyPosture : MonoBehaviour
         if (IsBroken) return;
         currentPosture = Mathf.Min(currentPosture + amount, maxPosture);
         Debug.Log($"【系统】怪物积累被动熵值：{currentPosture} / {maxPosture}");
+        NotifyUIImmediate();
 
         if (currentPosture >= maxPosture)
         {
@@ -64,6 +75,7 @@ public class EnemyPosture : MonoBehaviour
             // 重置博弈状态
             currentPosture = 0;
             IsBroken = false;
+            NotifyUIImmediate();
             
             // 恢复 AI
             EnemyAttackBrain brain = GetComponent<EnemyAttackBrain>();
@@ -91,9 +103,35 @@ public class EnemyPosture : MonoBehaviour
     {
         currentHP = Mathf.Max(0, currentHP - damage);
         Debug.Log($"【系统】怪物受到伤害，剩余生命值: {currentHP} / {maxHP}");
+        NotifyUIImmediate();
         
         // 【新规：UI 反馈】同步触发 Boss 血条抖动
         if (CombatHUDManager.Instance != null)
             CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: false);
+    }
+
+    public void TriggerAnomalyCoreParryUIFeedback()
+    {
+        EnemyWorldHUD hud = GetComponent<EnemyWorldHUD>();
+        if (hud != null)
+        {
+            hud.TriggerAnomalyCoreParryPulse();
+            hud.ForceSyncNow();
+        }
+
+        if (CombatHUDManager.Instance != null)
+        {
+            CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: false);
+            CombatHUDManager.Instance.ForceRefreshBossUI();
+        }
+    }
+
+    private void NotifyUIImmediate()
+    {
+        EnemyWorldHUD hud = GetComponent<EnemyWorldHUD>();
+        if (hud != null) hud.ForceSyncNow();
+
+        if (CombatHUDManager.Instance != null)
+            CombatHUDManager.Instance.ForceRefreshBossUI();
     }
 }

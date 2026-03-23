@@ -32,6 +32,20 @@ public class EnemyAttackBrain : MonoBehaviour
     public EnemyHitbox redSweepHitbox;
     public EnemyHitbox blueSmashHitbox;
 
+    [Header("🌐 全场攻击范围设置")]
+    [Tooltip("开启后自动覆盖攻击判定盒范围，便于做全场攻击与快速平衡。")]
+    public bool overrideHitboxCoverage = true;
+    [Tooltip("根据玩家场地半径自动同步攻击范围。")]
+    public bool syncWithArenaRadius = true;
+    [Tooltip("场地半径倍率。2 = 理论上可覆盖整个场地。")]
+    public float arenaCoverageMultiplier = 2f;
+    [Tooltip("手动覆盖时使用的攻击半径。")]
+    public float manualCoverageRadius = 30f;
+    [Tooltip("攻击判定盒高度。")]
+    public float coverageHeight = 3f;
+    [Tooltip("攻击判定盒中心偏移。")]
+    public Vector3 coverageCenterOffset = new Vector3(0f, 1f, 0f);
+
     [Header("🎯 攻击面板数值")]
     public float baseDamage = 10f;
     public float basePostureDamage = 20f;
@@ -52,6 +66,8 @@ public class EnemyAttackBrain : MonoBehaviour
     private EnemyPosture posture;
     private EnemyTracker tracker;
     private Transform playerTransform;
+    private PlayerController playerController;
+    private float lastAppliedCoverageRadius = -1f;
 
     private void Awake()
     {
@@ -62,7 +78,13 @@ public class EnemyAttackBrain : MonoBehaviour
         cooldownTimer = attackCooldown;
 
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) playerTransform = player.transform;
+        if (player != null)
+        {
+            playerTransform = player.transform;
+            playerController = player.GetComponent<PlayerController>();
+        }
+
+        ApplyHitboxCoverage(force: true);
 
         if (posture != null)
         {
@@ -78,6 +100,11 @@ public class EnemyAttackBrain : MonoBehaviour
 
     private void Update()
     {
+        if (overrideHitboxCoverage && syncWithArenaRadius)
+        {
+            ApplyHitboxCoverage(force: false);
+        }
+
         if (CurrentState != EnemyState.Idle) return;
 
         cooldownTimer -= Time.deltaTime;
@@ -306,5 +333,31 @@ public class EnemyAttackBrain : MonoBehaviour
         shapeMorpher.ResetShape(0.1f);
         if (redSweepHitbox) redSweepHitbox.DeactivateHitbox();
         if (blueSmashHitbox) blueSmashHitbox.DeactivateHitbox();
+    }
+
+    private void ApplyHitboxCoverage(bool force)
+    {
+        if (!overrideHitboxCoverage) return;
+
+        float radius = manualCoverageRadius;
+        if (syncWithArenaRadius && playerController != null)
+        {
+            radius = Mathf.Max(1f, playerController.arenaRadius * arenaCoverageMultiplier);
+        }
+
+        if (!force && Mathf.Approximately(radius, lastAppliedCoverageRadius)) return;
+
+        ApplyCoverageToHitbox(redSweepHitbox, radius);
+        ApplyCoverageToHitbox(blueSmashHitbox, radius);
+        lastAppliedCoverageRadius = radius;
+    }
+
+    private void ApplyCoverageToHitbox(EnemyHitbox hitbox, float radius)
+    {
+        if (hitbox == null) return;
+
+        float safeRadius = Mathf.Max(1f, radius);
+        hitbox.hitboxCenterOffset = coverageCenterOffset;
+        hitbox.hitboxSize = new Vector3(safeRadius * 2f, Mathf.Max(0.5f, coverageHeight), safeRadius * 2f);
     }
 }

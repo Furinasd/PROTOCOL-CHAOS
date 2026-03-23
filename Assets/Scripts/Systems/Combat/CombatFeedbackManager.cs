@@ -27,6 +27,9 @@ public class CombatFeedbackManager : MonoBehaviour
     [Tooltip("宕机处决时的震动强度（最强）")]
     public float executeShakeForce = 3.0f;
 
+    [Tooltip("特殊污染区弹刀成功时的震动强度（究极）")]
+    public float anomalyCoreParryShakeForce = 4.5f;
+
     [Header("⏱️ 顿帧安全锁 (Hitlag)")]
     private bool isHitlagging = false;
 
@@ -70,6 +73,20 @@ public class CombatFeedbackManager : MonoBehaviour
         TriggerHitlag(timeScale: 0.02f, duration: 0.25f);
         
         Debug.Log("<color=black>⬛ [Feedback] 处决瞬间：时空停滞，万物死寂。</color>");
+    }
+
+    /// <summary>
+    /// 【特殊污染区弹刀成功】究极反馈：更强震动 + 更深顿帧 + 镜头空间冲击。
+    /// </summary>
+    public void TriggerAnomalyCoreParryFeedback()
+    {
+        GenerateImpulse(anomalyCoreParryShakeForce);
+        TriggerHitlag(timeScale: 0.01f, duration: 0.3f);
+
+        if (CameraController.Instance != null)
+            CameraController.Instance.TriggerDashFOV();
+
+        Debug.Log("<color=magenta>✴ [Feedback] 异常源弹刀成功：秩序反相爆发！</color>");
     }
 
     // ──────────────────────────────────
