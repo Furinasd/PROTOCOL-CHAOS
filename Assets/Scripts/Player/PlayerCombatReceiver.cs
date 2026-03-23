@@ -177,21 +177,38 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     {
         if (currentHP > 0) currentHP = 0;
         
-        Debug.Log("<color=red>💀 玩家阵亡！触发游戏结束序列...</color>");
+        Debug.Log("<color=red>💀 玩家阵亡！触发物理锚定与仪式感定格...</color>");
         
-        // 恢复时间缩放并清理缓动
-        Time.timeScale = 1f;
+        // 【1. 物理锚定】：瞬间凝固，防止无底洞掉落
+        if (controller != null)
+        {
+            controller.enabled = false;
+            var cc = GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+        }
+
+        // 【2. 死亡反馈】：极致定格与震动
+        if (CombatFeedbackManager.Instance != null)
+        {
+            // 比普通受伤更强烈的冲击感
+            CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
+            // 额外手动触发一个超长顿帧（0.5s）
+            if (TimeManager.Instance != null)
+                TimeManager.Instance.DoHitstop(0.5f, 0.05f);
+        }
+
+        // 【3. 状态清理】：恢复时间缩放并杀死所有残留 Tween，防止干扰 UI 动画
         DOTween.KillAll(); 
 
-        // 触发 UI 渐暗与重启按钮 (补全逻辑)
+        // 【4. 触发 UI】：交给 GameOverManager 处理接下来的视觉演出
         if (GameOverManager.Instance != null)
         {
             GameOverManager.Instance.TriggerGameOver();
         }
         else
         {
-            // 如果场景中没有 GameOverManager，则回退到直接重开
             Debug.LogWarning("[PlayerCombatReceiver] GameOverManager not found, falling back to instant reload.");
+            Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
     }

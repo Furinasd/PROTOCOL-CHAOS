@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using DG.Tweening;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// 管理游戏结束 UI 表现与场景重启逻辑
@@ -20,19 +22,32 @@ public class GameOverManager : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else { Destroy(gameObject); return; }
 
         if (gameOverCanvasGroup != null)
         {
             gameOverCanvasGroup.alpha = 0;
             gameOverCanvasGroup.interactable = false;
             gameOverCanvasGroup.blocksRaycasts = false;
+            // 初始缩放设为 0.8，用于后续弹跳展开感
+            gameOverCanvasGroup.transform.localScale = Vector3.one * 0.8f;
         }
 
         if (restartButton != null)
         {
             restartButton.onClick.AddListener(RestartGame);
-            // 初始隐藏按钮交互（通过 CanvasGroup 控制）
+        }
+    }
+
+    private void Update()
+    {
+        // 【死亡后快捷重启】：允许玩家在 UI 显示期间按 R 键快速开局
+        if (gameOverCanvasGroup != null && gameOverCanvasGroup.alpha > 0.5f)
+        {
+            if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+            {
+                RestartGame();
+            }
         }
     }
 
@@ -60,31 +75,34 @@ public class GameOverManager : MonoBehaviour
 
     private IEnumerator GameOverSequence()
     {
-        Debug.Log("[GameOver] Starting UI Sequence...");
+        Debug.Log("<color=red>[GameOver] 秩序坍缩中... 正在展开结局界面。</color>");
 
         if (gameOverCanvasGroup != null)
         {
-            float elapsed = 0;
-            while (elapsed < fadeDuration)
-            {
-                elapsed += Time.deltaTime;
-                gameOverCanvasGroup.alpha = Mathf.Clamp01(elapsed / fadeDuration);
-                yield return null;
-            }
+            // 使用 DOTween 制作更具仪式感的展开：Alpha 渐变 + 弹跳缩放
+            gameOverCanvasGroup.DOFade(1f, fadeDuration).SetUpdate(true);
+            gameOverCanvasGroup.transform.DOScale(1f, fadeDuration).SetEase(Ease.OutBack).SetUpdate(true);
             
-            gameOverCanvasGroup.alpha = 1;
+            yield return new WaitForSecondsRealtime(fadeDuration);
+            
+            // 【新规：重开体验】确保鼠标可见并解锁，方便玩家点击按钮
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+
             gameOverCanvasGroup.interactable = true;
             gameOverCanvasGroup.blocksRaycasts = true;
+            Debug.Log("<color=yellow>[GameOver] UI 已就绪。按 R 或点击按钮重启。</color>");
         }
-
-        Debug.Log("[GameOver] UI Ready for Restart.");
     }
 
     public void RestartGame()
     {
         Debug.Log("[GameOver] Restarting Scene...");
-        // 恢复时间缩放（防止之前有慢动作效果）
+        // 彻底恢复状态，防止新场景继承死亡时的锁定状态
         Time.timeScale = 1.0f;
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Locked;
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }

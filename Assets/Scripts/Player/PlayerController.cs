@@ -62,28 +62,83 @@ public class PlayerController : MonoBehaviour
     public PlayerState GetState() => currentState;
 
     // ---------------------------------------------------------
-    // 【环境系统】：维护当前所在的污染区列表，确保叠层逻辑正确
+    // 【环境系统 v2 - 主从架构】
+    // 不再依赖不稳定的 OnTriggerExit，改由 PlayerController 自身
+    // 低频（0.1s/次）轮询 PuddleManager.ActivePuddles，
+    // 以径向距离 (Distance < puddle.Radius + 0.25f) 作为唯一事实依据。
     // ---------------------------------------------------------
-    private HashSet<ChaosPuddle> puddlesInside = new HashSet<ChaosPuddle>();
-    public void RegisterPuddle(ChaosPuddle p) { 
-        if (!puddlesInside.Contains(p)) puddlesInside.Add(p); 
-        UpdateEnvironmentalConditions();
-    }
-    public void UnregisterPuddle(ChaosPuddle p) { 
-        if (puddlesInside.Contains(p)) puddlesInside.Remove(p); 
-        UpdateEnvironmentalConditions();
-    }
-    private void UpdateEnvironmentalConditions() {
-        // 只要处在至少一个污染区，就维持减速。所有人离开后归 1。
-        environmentalSpeedMultiplier = (puddlesInside.Count > 0) ? 0.5f : 1.0f;
+    private float envPollInterval = 0.1f;   // 采样频率：每 0.1s 一次
+    private float envPollTimer = 0f;
+    private PlayerEnergySystem cachedEnergy;          // 缓存组件引用，避免重复 GetComponent
+    private PlayerCombatReceiver cachedCombatReceiver;
 
-        // 【新规】：同步给能量系统计时器
-        PlayerEnergySystem energy = GetComponent<PlayerEnergySystem>();
-        if (energy != null)
+    private void PollEnvironmentalConditions()
+    {
+        envPollTimer -= Time.deltaTime;
+        if (envPollTimer > 0f) return;
+        envPollTimer = envPollInterval;
+
+        if (PuddleManager.Instance == null) return;
+
+        var puddles = PuddleManager.Instance.ActivePuddles;
+        bool isInsideAny = false;
+        bool isInsideCore = false;
+        float worstDamageRate = 0f;
+        float worstSpeedMult = 1f;
+
+        Vector3 myPos = transform.position;
+
+        for (int i = 0; i < puddles.Count; i++)
         {
-            energy.SetInPuddle(puddlesInside.Count > 0);
+            ChaosPuddle p = puddles[i];
+            // 防御性空检查（对象池回收偶发竞争）
+            if (p == null || !p.isContaminated) continue;
+
+            float dist = Vector3.Distance(
+                new Vector3(myPos.x, p.transform.position.y, myPos.z), // 忽略 Y 轴高度差
+                p.transform.position);
+
+            if (dist < p.Radius + 0.25f) // 0.25m 容差，弥补低频采样间隙
+            {
+                isInsideAny = true;
+                if (p.isCoreAnomaly) isInsideCore = true;
+
+                // 取最严厉惩罚（叠加污染区时不叠乘，取最劣值）
+                worstDamageRate = Mathf.Max(worstDamageRate, p.damagePerSecond);
+                worstSpeedMult = Mathf.Min(worstSpeedMult, p.speedMultiplier);
+            }
         }
+
+        // 应用环境速度
+        environmentalSpeedMultiplier = isInsideAny ? worstSpeedMult : 1.0f;
+
+        // 应用持续伤害（已转换为本采样周期内的扣血量）
+        if (isInsideAny && worstDamageRate > 0f)
+        {
+            if (cachedCombatReceiver == null) cachedCombatReceiver = GetComponent<PlayerCombatReceiver>();
+            if (cachedCombatReceiver != null)
+            {
+                float dmg = worstDamageRate * envPollInterval;
+                cachedCombatReceiver.currentHP = Mathf.Max(0f, cachedCombatReceiver.currentHP - dmg);
+                if (cachedCombatReceiver.currentHP <= 0f)
+                    Debug.Log("<color=red>☠️ [Env] 污染区将玩家 HP 扣至 0</color>");
+            }
+        }
+
+        // 同步给能量系统
+        if (cachedEnergy == null) cachedEnergy = GetComponent<PlayerEnergySystem>();
+        if (cachedEnergy != null) cachedEnergy.SetInPuddle(isInsideAny);
+
+        // 同步核心异常区标记
+        if (cachedCombatReceiver != null)
+            cachedCombatReceiver.isStandingOnAnomalyCore = isInsideCore;
     }
+
+    // 兼容层：ChaosPuddle 旧版可能残留的调用（重构后 Puddle 不再调用这两个接口）
+    [System.Obsolete("主从架构 v2 中 Puddle 不再主动调用 RegisterPuddle，该函数保留仅作兼容过渡")]
+    public void RegisterPuddle(ChaosPuddle p) { }
+    [System.Obsolete("主从架构 v2 中 Puddle 不再主动调用 UnregisterPuddle，该函数保留仅作兼容过渡")]
+    public void UnregisterPuddle(ChaosPuddle p) { }
     private PlayerState previousStateBeforeHitlag = PlayerState.Normal;
     private Coroutine hitlagCoroutine;
 
@@ -109,15 +164,18 @@ public class PlayerController : MonoBehaviour
     {
         if (Keyboard.current == null) return;
 
-        // 【新规：软边界检测】
+        // 软边界检测
         CheckArenaBoundaries();
 
-        // 【新规：重力与掉落检测】
+        // 掉落检测
         if (transform.position.y < -15f)
         {
             TriggerFallDeath();
             return;
         }
+
+        // 【环境感知 v2】低频轮询（每 0.1s 一次），替代 OnTrigger 事件驱动
+        PollEnvironmentalConditions();
 
         // 核心状态机路由
         switch (currentState)
@@ -348,6 +406,9 @@ public class PlayerController : MonoBehaviour
         Debug.Log($"<color=cyan>💨 [Action] Player Dashed at {lastDashTime:F2}</color>");
         velocity.y = 0f; // 冲刺期间不受重力影响
 
+        // 【3C Day1】镜头 FOV 突破感：Ease.OutExpo 非线性爆发 → 缓慢回弹
+        CameraController.Instance?.TriggerDashFOV();
+
         Vector3 dashDir = transform.forward; // 默认向前冲刺
         // 如果有输入，则朝输入方向冲刺
         float h = Keyboard.current.dKey.ReadValue() - Keyboard.current.aKey.ReadValue();
@@ -428,6 +489,9 @@ public class PlayerController : MonoBehaviour
         // 如果在顿帧(Hitlag)中途触发重置，会导致新场景卡在慢动作下，影响输入判定。
         Time.timeScale = 1f;
         DOTween.KillAll();
+
+        // 【3C Day1】防止 FOV Tween 残留导致新场景镜头漂移
+        CameraController.Instance?.ResetFOV();
         
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
