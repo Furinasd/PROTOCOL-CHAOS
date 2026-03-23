@@ -10,6 +10,7 @@ public class BoundaryVisualCircle : MonoBehaviour
     [Header("🎨 Visual Settings")]
     public float circleLineWidth = 0.3f;
     public int circleSegments = 64;
+    public float heightOffset = 0.15f;
 
     private float lastRadius;
 
@@ -54,18 +55,24 @@ public class BoundaryVisualCircle : MonoBehaviour
         if (line == null) return;
 
         float radius = (playerController != null) ? playerController.arenaRadius : 20f;
-        
-        line.useWorldSpace = false;
+
+        // Force a readable ring in runtime: avoid ground z-fighting and local transform distortion.
+        line.useWorldSpace = true;
         line.loop = true;
-        line.positionCount = circleSegments;
+        line.positionCount = Mathf.Max(8, circleSegments);
         line.startWidth = circleLineWidth;
         line.endWidth = circleLineWidth;
+        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        line.receiveShadows = false;
+        line.alignment = LineAlignment.View;
 
-        Vector3[] points = new Vector3[circleSegments];
-        for (int i = 0; i < circleSegments; i++)
+        int segments = line.positionCount;
+        Vector3 center = transform.position + Vector3.up * heightOffset;
+        Vector3[] points = new Vector3[segments];
+        for (int i = 0; i < segments; i++)
         {
-            float angle = i * 2f * Mathf.PI / circleSegments;
-            points[i] = new Vector3(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
+            float angle = i * 2f * Mathf.PI / segments;
+            points[i] = center + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
         }
         line.SetPositions(points);
         lastRadius = radius;
