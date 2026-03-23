@@ -12,13 +12,16 @@ public class EnemyPosture : MonoBehaviour
     public float maxHP = 200f;
     public float currentHP = 200f;
 
+    [Header("Type")]
+    public bool isBoss = false;
+
     public float HealthPercentage => currentHP / maxHP;
     public float PosturePercentage => maxPosture <= 0f ? 0f : Mathf.Clamp01(currentPosture / maxPosture);
 
     private void Awake()
     {
-        // 保底挂载头顶双条 UI，避免场景重构后漏配组件。
-        if (GetComponent<EnemyWorldHUD>() == null)
+        // 如果是普通小怪，保底挂载头顶双条 UI，避免场景重构后漏配组件。
+        if (!isBoss && GetComponent<EnemyWorldHUD>() == null)
         {
             gameObject.AddComponent<EnemyWorldHUD>();
         }
@@ -46,14 +49,14 @@ public class EnemyPosture : MonoBehaviour
         IsBroken = true;
         Debug.Log("<color=grey>【宕机】怪物熵值爆满，陷入彻底瘫痪，等待 F 键处决</color>");
         OnPostureBroken?.Invoke();
-        
+
         // 视觉提示：进入呆滞态
         Renderer rend = GetComponentInChildren<Renderer>();
-        if(rend != null) rend.material.color = Color.gray;
-        
+        if (rend != null) rend.material.color = Color.gray;
+
         // 可选：让大脑处于 Stunned 状态
         EnemyAttackBrain brain = GetComponent<EnemyAttackBrain>();
-        if(brain != null) brain.StopAllCoroutines();
+        if (brain != null) brain.StopAllCoroutines();
     }
 
     /// <summary>
@@ -76,7 +79,7 @@ public class EnemyPosture : MonoBehaviour
             currentPosture = 0;
             IsBroken = false;
             NotifyUIImmediate();
-            
+
             // 恢复 AI
             EnemyAttackBrain brain = GetComponent<EnemyAttackBrain>();
             if (brain != null) brain.ResetAfterStun();
@@ -91,8 +94,9 @@ public class EnemyPosture : MonoBehaviour
         {
             // 彻底销毁逻辑
             Collider col = GetComponent<Collider>();
-            if(col != null) col.enabled = false;
-            transform.DOScale(Vector3.zero, 0.4f).SetEase(Ease.InBack).SetUpdate(true).OnComplete(() => {
+            if (col != null) col.enabled = false;
+            transform.DOScale(Vector3.zero, 0.4f).SetEase(Ease.InBack).SetUpdate(true).OnComplete(() =>
+            {
                 Destroy(gameObject);
             });
             Debug.Log("<color=red>💠 [处决] 秩序彻底肃清！</color>");
@@ -104,7 +108,7 @@ public class EnemyPosture : MonoBehaviour
         currentHP = Mathf.Max(0, currentHP - damage);
         Debug.Log($"【系统】怪物受到伤害，剩余生命值: {currentHP} / {maxHP}");
         NotifyUIImmediate();
-        
+
         // 【新规：UI 反馈】同步触发 Boss 血条抖动
         if (CombatHUDManager.Instance != null)
             CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: false);
@@ -112,6 +116,12 @@ public class EnemyPosture : MonoBehaviour
 
     public void TriggerAnomalyCoreParryUIFeedback()
     {
+        EnemyVisualController visual = GetComponent<EnemyVisualController>();
+        if (visual != null)
+        {
+            visual.TriggerAnomalyParryBurst();
+        }
+
         EnemyWorldHUD hud = GetComponent<EnemyWorldHUD>();
         if (hud != null)
         {

@@ -120,7 +120,7 @@ public class EnemyAttackBrain : MonoBehaviour
         if (CurrentState == EnemyState.Stunned) return;
 
         // 【机制三：残血紫光博弈】
-        if (posture.HealthPercentage < 0.3f && Random.value < 0.4f)
+        if (posture != null && posture.isBoss && posture.HealthPercentage < 0.3f && Random.value < 0.4f)
         {
             StartCoroutine(PurpleBluffRoutine());
             return;

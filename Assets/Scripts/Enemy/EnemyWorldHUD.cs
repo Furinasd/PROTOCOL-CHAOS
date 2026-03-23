@@ -41,6 +41,11 @@ public class EnemyWorldHUD : MonoBehaviour
     private void Awake()
     {
         posture = GetComponent<EnemyPosture>();
+        if (posture != null && posture.isBoss)
+        {
+            Destroy(this);
+            return;
+        }
         mainCam = Camera.main;
         BuildUI();
     }

@@ -23,26 +23,41 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     [Header("⚔️ 弹刀/对冲参数")]
     public float parryCounterPostureDamage = 50f;
     public int parryEnergyCost = 3; // 可在 Inspector 调整消耗 (设计稿默认为 3)
+    public float blockWindow = 0.22f; // 对冲判定窗口
+    public float movingParryBonusWindow = 0.1f; // 移动时额外判定
+    public float movingThreshold = 0.02f; // 低于该位移视作静止
 
     // 状态标记
     public bool isStandingOnAnomalyCore = false;
     private float lastBlockInputTime = -10f;
-    private float blockWindow = 0.2f; // 对冲判定窗口 (设计稿要求)
+    private Vector3 lastFramePosition;
+    private bool wasMovingThisFrame;
 
     private void Awake()
     {
         controller = GetComponent<PlayerController>();
         polarity = GetComponent<PlayerPolarity>();
         energySystem = GetComponent<PlayerEnergySystem>();
+        lastFramePosition = transform.position;
     }
 
     private void Update()
     {
         // 核心：监听请求 (通过缓冲队列)
+        Vector3 delta = transform.position - lastFramePosition;
+        wasMovingThisFrame = new Vector2(delta.x, delta.z).sqrMagnitude > movingThreshold * movingThreshold;
+        lastFramePosition = transform.position;
+
         if (controller != null && controller.ConsumeBuffer(PlayerController.InputType.Parry))
         {
-            lastBlockInputTime = Time.time;
+            lastBlockInputTime = Time.unscaledTime;
             Debug.Log("<color=white>🛡️ 玩家进入格挡姿态...</color>");
+        }
+
+        // 输入兜底：防止缓冲被其他逻辑竞争消费，确保移动中也能稳定打开弹刀窗口。
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            lastBlockInputTime = Time.unscaledTime;
         }
 
         if (controller != null && controller.ConsumeBuffer(PlayerController.InputType.Execute))
@@ -82,7 +97,8 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         // ---------------------------------------------------------
         // 轨道 2：极性对冲/弹刀 (Polarity Annihilation) - 核心输出
         // ---------------------------------------------------------
-        bool isBlocking = (Time.time - lastBlockInputTime) <= blockWindow; // 使用 0.2s 窗口
+        float effectiveWindow = blockWindow + (wasMovingThisFrame ? movingParryBonusWindow : 0f);
+        bool isBlocking = (Time.unscaledTime - lastBlockInputTime) <= effectiveWindow;
         bool isDifferentPolarity = attack.polarity != playerPolarity && attack.polarity != Polarity.Neutral;
 
         if (isBlocking && isDifferentPolarity)
