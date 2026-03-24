@@ -50,6 +50,11 @@ public class PlayerPolarity : MonoBehaviour
         CurrentColor = CurrentColor == PolarityColor.Blue ? PolarityColor.Red : PolarityColor.Blue;
         IsParryWindow = true;
         parryTimer = parryWindowDuration;
+        
+        // 🎵 播放极性切换音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxPolaritySwitch != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPolaritySwitch);
+            
         UpdateVisuals();
     }
 

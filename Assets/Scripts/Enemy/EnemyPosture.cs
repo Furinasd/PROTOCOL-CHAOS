@@ -50,6 +50,10 @@ public class EnemyPosture : MonoBehaviour
         Debug.Log("<color=grey>【宕机】怪物熵值爆满，陷入彻底瘫痪，等待 F 键处决</color>");
         OnPostureBroken?.Invoke();
 
+        // 🎵 播放怪物破防状态音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxBossPostureBreak != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxBossPostureBreak);
+
         // 视觉提示：进入呆滞态
         Renderer rend = GetComponentInChildren<Renderer>();
         if (rend != null) rend.material.color = Color.gray;

@@ -14,6 +14,32 @@ public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
 
+    [Header("--- 🚀 BGM 音乐 (按需拖拽) ---")]
+    public AudioClip bgmBattleP1;
+    public AudioClip bgmBattleP2;
+
+    [Header("--- 🗡️ 玩家 3C 与战斗 ---")]
+    public AudioClip sfxPlayerDash;
+    public AudioClip sfxPolaritySwitch;
+    public AudioClip sfxPerfectParry; // 极限支援清脆打铁
+    public AudioClip sfxEnergyAbsorb;
+    public AudioClip sfxPlayerDamage;
+    public AudioClip sfxExecutionHit; // 处决重击
+
+    [Header("--- 👹 敌人/Boss 预警与攻击 ---")]
+    public AudioClip sfxBossTelegraph;
+    public AudioClip sfxBossSwingFast;
+    public AudioClip sfxBossSwingHeavy;
+    public AudioClip sfxBossBerserk;
+    public AudioClip sfxBossPostureBreak;
+
+    [Header("--- 🌌 环境与污染区 ---")]
+    public AudioClip sfxPuddleSpawn;
+    public AudioClip sfxPuddleHazard; // 持续伤害音
+    public AudioClip sfxPuddleHeal;   // 持续回血充能音
+    public AudioClip sfxBoundaryWarn;
+    public AudioClip sfxBoundaryPull;
+
     [Header("🎵 音轨组 (运行时自动生成)")]
     private AudioSource bgmSource;
     private AudioSource sfxSource;
@@ -58,17 +84,48 @@ public class AudioManager : MonoBehaviour
         highlightSource.ignoreListenerPause = true; 
     }
 
+    private void Start()
+    {
+        // 【解决 BGM 无声】默认在启动时播放第一阶段 BGM
+        if (bgmBattleP1 != null)
+        {
+            PlayBGM(bgmBattleP1, 0.5f);
+        }
+    }
+
     /// <summary>
     /// 播放背景音乐
     /// </summary>
     public void PlayBGM(AudioClip clip, float volume = 0.5f)
     {
-        if (clip == null || bgmSource.clip == clip) return;
+        if (clip == null) return;
+        
+        // 如果是同一首切片且正在播放，则跳过
+        if (bgmSource.clip == clip && bgmSource.isPlaying) return;
         
         originalBgmVolume = volume;
+        bgmSource.DOKill(); // 停止任何音量渐变
         bgmSource.clip = clip;
         bgmSource.volume = volume;
         bgmSource.Play();
+    }
+
+    /// <summary>
+    /// 平滑切换背景音乐 (Cross-Fade)
+    /// </summary>
+    public void SwitchBGM(AudioClip newClip, float fadeDuration = 1.0f, float volume = 0.5f)
+    {
+        if (newClip == null || bgmSource.clip == newClip) return;
+
+        originalBgmVolume = volume;
+        
+        // 使用 DOTween 实现平滑淡出 -> 换曲 -> 淡入
+        bgmSource.DOFade(0, fadeDuration * 0.5f).OnComplete(() =>
+        {
+            bgmSource.clip = newClip;
+            bgmSource.Play();
+            bgmSource.DOFade(originalBgmVolume, fadeDuration * 0.5f);
+        }).SetUpdate(true); // 保证在 TimeScale 冻结时也能切换音乐
     }
 
     /// <summary>

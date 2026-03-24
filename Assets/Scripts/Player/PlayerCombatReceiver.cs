@@ -109,6 +109,10 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 energySystem.TryConsumeEnergy(parryEnergyCost);
                 Debug.Log("<color=cyan>✨ 极性湮灭！成功弹刀异色攻击！</color>");
                 
+                // 🎵 播放极限支援/弹刀音效（无视物理减速）
+                if (AudioManager.Instance != null && AudioManager.Instance.sfxPerfectParry != null)
+                    AudioManager.Instance.PlayHighlightSFX(AudioManager.Instance.sfxPerfectParry);
+
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerParryFeedback();
 
@@ -159,6 +163,10 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
             Debug.Log("<color=cyan>⚡ 同色吸收！不扣血，获得 1 格秩序能量。</color>");
             energySystem.AddEnergy(1);
             
+            // 🎵 播放同色吸收钝击音效
+            if (AudioManager.Instance != null && AudioManager.Instance.sfxEnergyAbsorb != null)
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxEnergyAbsorb);
+            
             ApplyKnockback(attack.sourcePosition);
             controller.ApplySlowdown(0.8f, 0.4f);
 
@@ -184,6 +192,10 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
         Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
         currentHP -= calculatedDamage;
+
+        // 🎵 播放受击音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxPlayerDamage != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPlayerDamage);
 
         if (controller.visualRoot != null)
             controller.visualRoot.DOShakePosition(0.4f, 0.8f, 25, 90, false, true).SetUpdate(true);
@@ -269,6 +281,14 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 // 触发战斗反馈单例的多重演出
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerAnnihilationFeedback();
+
+                // 🎵 播放处决重击音效并触发全局真空压耳效果 (Ducking)
+                if (AudioManager.Instance != null)
+                {
+                    if (AudioManager.Instance.sfxExecutionHit != null)
+                        AudioManager.Instance.PlayHighlightSFX(AudioManager.Instance.sfxExecutionHit);
+                    AudioManager.Instance.TriggerVacuumEffect(1.2f, 0.1f);
+                }
 
                 // 核心：调用敌人的终结序列（包含材质替换与爆缩）
                 target.Execute();

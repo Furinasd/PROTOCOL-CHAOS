@@ -155,6 +155,10 @@ public class EnemyAttackBrain : MonoBehaviour
     {
         visualController.GlowForTelegraph(attackPolarity, duration);
         
+        // 🎵 播放 Boss 出招预警音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxBossTelegraph != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxBossTelegraph);
+        
         // 【视觉联动】：根据极性区分形变类型
         int morphType = (attackPolarity == Polarity.Red) ? 2 : 1;
         shapeMorpher.MorphForTelegraph(duration, morphType);
@@ -177,6 +181,15 @@ public class EnemyAttackBrain : MonoBehaviour
         // 攻击瞬间
         CurrentState = EnemyState.Attacking;
         shapeMorpher.ResetShape(0.05f);
+
+        // 🎵 播放对应极性的破空挥砍音效
+        if (AudioManager.Instance != null)
+        {
+            if (attackPolarity == Polarity.Red && AudioManager.Instance.sfxBossSwingFast != null)
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxBossSwingFast);
+            else if (attackPolarity == Polarity.Blue && AudioManager.Instance.sfxBossSwingHeavy != null)
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxBossSwingHeavy);
+        }
 
         if (targetHitbox != null)
         {
@@ -239,6 +252,10 @@ public class EnemyAttackBrain : MonoBehaviour
                     // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
                     ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
                     
+                    // 🎵 播放污染区生成音效
+                    if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleSpawn != null)
+                        AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleSpawn);
+
                     // 应用缩放
                     if (puddle != null) puddle.ApplySizeMultiplier(sizeMultiplier);
                 }
@@ -258,10 +275,23 @@ public class EnemyAttackBrain : MonoBehaviour
         }
     }
 
+    private bool hasSwitchedToP2BGM = false;
+
     private IEnumerator PurpleBluffRoutine()
     {
         CurrentState = EnemyState.Telegraphing;
         Debug.Log("<color=purple>【狂暴】Boss 进入紫光预警！绝对禁盾二连击！可在特殊污染区强制弹刀！</color>");
+
+        // 🎵 播放 Boss 狂暴变身音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxBossBerserk != null)
+            AudioManager.Instance.PlayHighlightSFX(AudioManager.Instance.sfxBossBerserk);
+
+        // 【实战范例：切换至 BGM P2】
+        if (!hasSwitchedToP2BGM && AudioManager.Instance != null && AudioManager.Instance.bgmBattleP2 != null)
+        {
+            hasSwitchedToP2BGM = true;
+            AudioManager.Instance.SwitchBGM(AudioManager.Instance.bgmBattleP2, 1.5f);
+        }
 
         float p2Duration = 10f; // 二阶段持续 10 秒
         float startTime = Time.time;

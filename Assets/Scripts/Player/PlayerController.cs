@@ -122,6 +122,10 @@ public class PlayerController : MonoBehaviour
                 cachedCombatReceiver.currentHP = Mathf.Max(0f, cachedCombatReceiver.currentHP - dmg);
                 if (cachedCombatReceiver.currentHP <= 0f)
                     Debug.Log("<color=red>☠️ [Env] 污染区将玩家 HP 扣至 0</color>");
+                
+                // 🎵 播放环境伤害/灼烧音效 (0.1s轮询频次，音量压低)
+                if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleHazard != null)
+                    AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleHazard, 0.3f);
             }
         }
 
@@ -404,6 +408,11 @@ public class PlayerController : MonoBehaviour
         currentState = PlayerState.Dashing;
         lastDashTime = Time.time;
         Debug.Log($"<color=cyan>💨 [Action] Player Dashed at {lastDashTime:F2}</color>");
+        
+        // 🎵 播放冲刺音效
+        if (AudioManager.Instance != null && AudioManager.Instance.sfxPlayerDash != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPlayerDash);
+
         velocity.y = 0f; // 冲刺期间不受重力影响
 
         // 【3C Day1】镜头 FOV 突破感：Ease.OutExpo 非线性爆发 → 缓慢回弹
