@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using DG.Tweening;
+using System;
 
 // ==========================================
 // Title: 玩家战斗受击处理器 (Player Combat Receiver)
@@ -12,6 +13,9 @@ using DG.Tweening;
 [RequireComponent(typeof(PlayerController), typeof(PlayerPolarity), typeof(PlayerEnergySystem))]
 public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 {
+    public event Action OnSamePolarityAbsorbed;
+    public event Action OnPerfectParrySucceeded;
+
     private PlayerController controller;
     private PlayerPolarity polarity;
     private PlayerEnergySystem energySystem;
@@ -26,6 +30,10 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     public float blockWindow = 0.22f; // 对冲判定窗口
     public float movingParryBonusWindow = 0.1f; // 移动时额外判定
     public float movingThreshold = 0.02f; // 低于该位移视作静止
+
+    [Header("📘 教程规则开关")]
+    [SerializeField] private bool allowAbsorbEnergyReward = true;
+    [SerializeField] private bool allowDodgeEnergyReward = true;
 
     // 状态标记
     public bool isStandingOnAnomalyCore = false;
@@ -75,7 +83,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
         // 获取当前极性枚举
         Polarity playerPolarity = PolarityBridge.FromPolarityColor(polarity.CurrentColor);
-        
+
         // ---------------------------------------------------------
         // 轨道 1：空间规避 (Spatial Evasion) - 充能手段
         // 【修复】：不再依赖 IsDodging/IsJumping 状态（Hitlag 会清空它们），
@@ -86,11 +94,14 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
         {
             Debug.Log($"<color=white>💨 完美规避！(Dash:{timeSinceDash:F2}s / Jump:{timeSinceJump:F2}s) 获取 2 格秩序能量。</color>");
-            energySystem.AddEnergy(2); 
+            if (allowDodgeEnergyReward)
+            {
+                energySystem.AddEnergy(2);
+            }
 
             if (PlayerCombatVFX.Instance != null) PlayerCombatVFX.Instance.TriggerDodgeVFX();
-            if (CombatFeedbackManager.Instance != null) CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
-            
+            if (CombatFeedbackManager.Instance != null) CombatFeedbackManager.Instance.TriggerDamageFeedback();
+
             return false; // 规避成功
         }
 
@@ -108,7 +119,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
             {
                 energySystem.TryConsumeEnergy(parryEnergyCost);
                 Debug.Log("<color=cyan>✨ 极性湮灭！成功弹刀异色攻击！</color>");
-                
+
                 // 🎵 播放极限支援/弹刀音效（无视物理减速）
                 if (AudioManager.Instance != null && AudioManager.Instance.sfxPerfectParry != null)
                     AudioManager.Instance.PlayHighlightSFX(AudioManager.Instance.sfxPerfectParry);
@@ -146,6 +157,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                     }
                 }
 
+                OnPerfectParrySucceeded?.Invoke();
                 return true; // 返回 true 告知怪物被弹飞
             }
             else
@@ -161,22 +173,26 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (attack.polarity == playerPolarity)
         {
             Debug.Log("<color=cyan>⚡ 同色吸收！不扣血，获得 1 格秩序能量。</color>");
-            energySystem.AddEnergy(1);
-            
+            if (allowAbsorbEnergyReward)
+            {
+                energySystem.AddEnergy(1);
+            }
+            OnSamePolarityAbsorbed?.Invoke();
+
             // 🎵 播放同色吸收钝击音效
             if (AudioManager.Instance != null && AudioManager.Instance.sfxEnergyAbsorb != null)
                 AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxEnergyAbsorb);
-            
+
             ApplyKnockback(attack.sourcePosition);
             controller.ApplySlowdown(0.8f, 0.4f);
 
             if (CombatFeedbackManager.Instance != null)
                 CombatFeedbackManager.Instance.TriggerDamageFeedback();
-            
+
             if (controller.visualRoot != null)
                 controller.visualRoot.DOShakePosition(0.4f, 0.5f, 20, 90, false, true).SetUpdate(true);
-            
-            controller.EnterHitlag(0.05f); 
+
+            controller.EnterHitlag(0.05f);
             return false;
         }
 
@@ -184,7 +200,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         // 轨道 4：混沌入侵 (Standard Damage) - 落地扣血
         // ---------------------------------------------------------
         float calculatedDamage = attack.damage;
-        if (isStandingOnAnomalyCore) 
+        if (isStandingOnAnomalyCore)
         {
             calculatedDamage *= 2f;
             Debug.Log("<color=red>💥 核心过载！在异常源内受击，伤害翻倍！</color>");
@@ -222,9 +238,9 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     public void Die()
     {
         if (currentHP > 0) currentHP = 0;
-        
+
         Debug.Log("<color=red>💀 玩家阵亡！触发物理锚定与仪式感定格...</color>");
-        
+
         // 【1. 物理锚定】：瞬间凝固，防止无底洞掉落
         if (controller != null)
         {
@@ -237,14 +253,14 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         if (CombatFeedbackManager.Instance != null)
         {
             // 比普通受伤更强烈的冲击感
-            CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
+            CombatFeedbackManager.Instance.TriggerDamageFeedback();
             // 额外手动触发一个超长顿帧（0.5s）
             if (TimeManager.Instance != null)
                 TimeManager.Instance.DoHitstop(0.5f, 0.05f);
         }
 
         // 【3. 状态清理】：恢复时间缩放并杀死所有残留 Tween，防止干扰 UI 动画
-        DOTween.KillAll(); 
+        DOTween.KillAll();
 
         // 【4. 触发 UI】：交给 GameOverManager 处理接下来的视觉演出
         if (GameOverManager.Instance != null)
@@ -264,7 +280,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         Vector3 knockbackDir = transform.position - attackerPos;
         knockbackDir.y = 0; // 先移除垂直分量
         knockbackDir.Normalize(); // 再归一化，保证水平力度充足
-        
+
         // 调用真实的物理击退接口，稍微增加力度以强化“代价”感知
         controller.AddKnockback(knockbackDir, 15f);
         Debug.Log($"[PlayerCombatReceiver] 物理击退启动方: {knockbackDir}");
@@ -291,7 +307,15 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 }
 
                 // 核心：调用敌人的终结序列（包含材质替换与爆缩）
-                target.Execute();
+                TutorialBoss tutorialBoss = target.GetComponent<TutorialBoss>();
+                if (tutorialBoss != null)
+                {
+                    tutorialBoss.TryExecuteFromPlayer();
+                }
+                else
+                {
+                    target.Execute();
+                }
                 break;
             }
         }
@@ -307,23 +331,32 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         {
             float timeSinceDash = Time.time - controller.LastDashTime;
             float timeSinceJump = Time.time - controller.LastJumpTime;
-            
+
             Debug.Log($"[Combat] NearMiss detected. IsDodging:{controller.IsDodging}, IsJumping:{controller.IsJumping}, timeSinceDash:{timeSinceDash:F2}, timeSinceJump:{timeSinceJump:F2}");
 
             if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
             {
                 Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！获取 2 格秩序能量奖励。</color>");
-                energySystem.AddEnergy(2); 
+                if (allowDodgeEnergyReward)
+                {
+                    energySystem.AddEnergy(2);
+                }
 
                 if (PlayerCombatVFX.Instance != null)
                     PlayerCombatVFX.Instance.TriggerDodgeVFX();
-                
+
                 if (CombatFeedbackManager.Instance != null)
-                    CombatFeedbackManager.Instance.TriggerDamageFeedback(); 
-                
+                    CombatFeedbackManager.Instance.TriggerDamageFeedback();
+
                 return true;
             }
         }
         return false;
+    }
+
+    public void ConfigureTutorialRules(bool canGainAbsorbEnergy, bool canGainDodgeEnergy)
+    {
+        allowAbsorbEnergyReward = canGainAbsorbEnergy;
+        allowDodgeEnergyReward = canGainDodgeEnergy;
     }
 }

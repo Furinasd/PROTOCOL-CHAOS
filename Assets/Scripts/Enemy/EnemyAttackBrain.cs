@@ -18,6 +18,8 @@ public enum EnemyState
 [RequireComponent(typeof(EnemyVisualController), typeof(EnemyShapeMorpher), typeof(EnemyPosture))]
 public class EnemyAttackBrain : MonoBehaviour
 {
+    public static event System.Action<EnemyAttackBrain, Polarity> OnTelegraphStarted;
+
     public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
 
     [Header("Attack Default Settings")]
@@ -129,7 +131,7 @@ public class EnemyAttackBrain : MonoBehaviour
         // 【机制一：距离感知权重】
         float dist = playerTransform != null ? Vector3.Distance(transform.position, playerTransform.position) : 10f;
         Polarity attackPolarity;
-        
+
         if (dist > 5f)
         {
             // 远距离：80% 几率红光突刺
@@ -153,12 +155,13 @@ public class EnemyAttackBrain : MonoBehaviour
 
     private IEnumerator AttackRoutine(Polarity attackPolarity, EnemyHitbox targetHitbox, float duration, System.Action onComplete)
     {
+        OnTelegraphStarted?.Invoke(this, attackPolarity);
         visualController.GlowForTelegraph(attackPolarity, duration);
-        
+
         // 🎵 播放 Boss 出招预警音效
         if (AudioManager.Instance != null && AudioManager.Instance.sfxBossTelegraph != null)
             AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxBossTelegraph);
-        
+
         // 【视觉联动】：根据极性区分形变类型
         int morphType = (attackPolarity == Polarity.Red) ? 2 : 1;
         shapeMorpher.MorphForTelegraph(duration, morphType);
@@ -193,7 +196,8 @@ public class EnemyAttackBrain : MonoBehaviour
 
         if (targetHitbox != null)
         {
-            AttackData data = new AttackData {
+            AttackData data = new AttackData
+            {
                 damage = baseDamage,
                 postureDamage = basePostureDamage,
                 polarity = attackPolarity,
@@ -208,7 +212,7 @@ public class EnemyAttackBrain : MonoBehaviour
         if (CurrentState != EnemyState.Stunned)
         {
             if (targetHitbox != null) targetHitbox.DeactivateHitbox();
-            
+
             // 【阶段六：环境污染生成】
             TrySpawnChaosPuddle(attackPolarity);
 
@@ -231,27 +235,27 @@ public class EnemyAttackBrain : MonoBehaviour
         }
 
         // 【新规】：在攻击瞬间玩家所在位置生成
-        Vector3 spawnPos = playerTransform.position; 
+        Vector3 spawnPos = playerTransform.position;
         Debug.Log($"<color=white>🔍 [Brain] 尝试在玩家位置 {spawnPos} 下方生成污染区...</color>");
-        
+
         RaycastHit[] hits = Physics.RaycastAll(spawnPos + Vector3.up * 5f, Vector3.down, 10f);
         bool foundGround = false;
-        
+
         foreach (var hit in hits)
         {
             if (hit.collider.CompareTag("Ground") || hit.collider.gameObject.name.Contains("Ground") || hit.collider.gameObject.name.Contains("Plane"))
             {
                 Debug.Log($"<color=white>✅ [Brain] 射线击中地面: {hit.point}，正在回收/提取 Puddle。</color>");
-                
+
                 if (PuddleManager.Instance != null)
                 {
                     // 按照面板配置决定生成类型
                     bool isSpecial = Random.value <= puddleSpecialProbability;
                     float sizeMultiplier = Random.Range(puddleSizeMultiplierMin, puddleSizeMultiplierMax);
-                    
+
                     // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
                     ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
-                    
+
                     // 🎵 播放污染区生成音效
                     if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleSpawn != null)
                         AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleSpawn);
@@ -263,7 +267,7 @@ public class EnemyAttackBrain : MonoBehaviour
                 {
                     Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空！</color>");
                 }
-                
+
                 foundGround = true;
                 break;
             }
@@ -300,8 +304,8 @@ public class EnemyAttackBrain : MonoBehaviour
         {
             // 预警：紫色光效
             visualController.GlowForTelegraph(Polarity.Neutral, telegraphDuration);
-            shapeMorpher.MorphForTelegraph(telegraphDuration, 3); 
-            
+            shapeMorpher.MorphForTelegraph(telegraphDuration, 3);
+
             if (tracker != null) tracker.StartTracking(15f);
             yield return new WaitForSeconds(telegraphDuration);
             if (tracker != null) tracker.StopTracking();
@@ -310,14 +314,15 @@ public class EnemyAttackBrain : MonoBehaviour
 
             // 第一击：红光极速横扫
             CurrentState = EnemyState.Attacking;
-            AttackData pd = new AttackData {
+            AttackData pd = new AttackData
+            {
                 damage = baseDamage * 0.7f,
                 postureDamage = 0,
                 polarity = Polarity.Neutral,
                 sourcePosition = transform.position,
                 sourceObject = gameObject
             };
-            
+
             redSweepHitbox.ActivateHitbox(pd);
             yield return new WaitForSeconds(0.15f);
             redSweepHitbox.DeactivateHitbox();
@@ -333,7 +338,7 @@ public class EnemyAttackBrain : MonoBehaviour
             visualController.ResetVisual();
             shapeMorpher.ResetShape(0.1f);
             CurrentState = EnemyState.Idle;
-            
+
             yield return new WaitForSeconds(1.5f); // 两次连击间的间隔
         }
 

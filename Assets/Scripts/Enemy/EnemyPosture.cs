@@ -30,6 +30,8 @@ public class EnemyPosture : MonoBehaviour
     // 当被打满时抛出事件，供处决系统监听
     public delegate void PostureBrokenHandler();
     public event PostureBrokenHandler OnPostureBroken;
+    public event System.Action OnExecuted;
+    public event System.Action OnEnemyDefeated;
 
     public void AddPosture(float amount)
     {
@@ -73,6 +75,8 @@ public class EnemyPosture : MonoBehaviour
     /// </summary>
     public void Execute()
     {
+        OnExecuted?.Invoke();
+
         // 1. 瞬间伤害
         float damage = maxHP * 0.5f;
         TakeDamage(damage);
@@ -103,6 +107,7 @@ public class EnemyPosture : MonoBehaviour
             {
                 Destroy(gameObject);
             });
+            OnEnemyDefeated?.Invoke();
             Debug.Log("<color=red>💠 [处决] 秩序彻底肃清！</color>");
         }
     }
@@ -116,6 +121,18 @@ public class EnemyPosture : MonoBehaviour
         // 【新规：UI 反馈】同步触发 Boss 血条抖动
         if (CombatHUDManager.Instance != null)
             CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: false);
+
+        if (currentHP <= 0f)
+        {
+            OnEnemyDefeated?.Invoke();
+        }
+    }
+
+    public void ResetPostureToNeutral()
+    {
+        currentPosture = 0f;
+        IsBroken = false;
+        NotifyUIImmediate();
     }
 
     public void TriggerAnomalyCoreParryUIFeedback()

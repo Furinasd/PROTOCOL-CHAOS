@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 // ==========================================
 // Title: 玩家秩序能量系统 (Player Energy System)
@@ -10,6 +11,13 @@ public class PlayerEnergySystem : MonoBehaviour
     [Header("⚡ 秩序能量 (Order Energy)")]
     public int maxEnergyGrids = 3;
     public int currentEnergyGrids = 0;
+
+    [Header("✨ 教程充能反馈")]
+    public bool triggerTutorialChargeGlitch = true;
+
+    public event Action<int, int> OnEnergyChanged;
+    public event Action OnEnergyFilled;
+    public event Action OnTutorialCheatFilled;
 
     [Header("🛡️ 环境保护 (Environmental Drain Protection)")]
     private float environmentalTimer = 0f;
@@ -57,11 +65,13 @@ public class PlayerEnergySystem : MonoBehaviour
     {
         int oldEnergy = currentEnergyGrids;
         currentEnergyGrids = Mathf.Clamp(currentEnergyGrids + amount, 0, maxEnergyGrids);
-        
+
         if (currentEnergyGrids > oldEnergy)
         {
             Debug.Log($"<color=yellow>【充能】获取秩序能量！目前总量: {currentEnergyGrids} / {maxEnergyGrids} 格</color>");
         }
+
+        RaiseEnergyEvents(oldEnergy);
     }
 
     /// <summary>
@@ -69,12 +79,51 @@ public class PlayerEnergySystem : MonoBehaviour
     /// </summary>
     public bool TryConsumeEnergy(int amount)
     {
+        int oldEnergy = currentEnergyGrids;
         if (currentEnergyGrids >= amount)
         {
             currentEnergyGrids -= amount;
             Debug.Log($"<color=red>【消耗】消耗 {amount} 格秩序能量！剩余: {currentEnergyGrids} / {maxEnergyGrids} 格</color>");
+            RaiseEnergyEvents(oldEnergy);
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// 教程用作弊接口：不改动消耗规则，只在敌人前摇前“白送满能”。
+    /// </summary>
+    public void CheatFillEnergyForTutorial()
+    {
+        int oldEnergy = currentEnergyGrids;
+        currentEnergyGrids = maxEnergyGrids;
+
+        if (currentEnergyGrids > oldEnergy)
+        {
+            Debug.Log("<color=cyan>【教程】战前注能：能量已强制回满，维持真实耗能弹刀习惯。</color>");
+            OnTutorialCheatFilled?.Invoke();
+
+            if (triggerTutorialChargeGlitch && CombatHUDManager.Instance != null)
+            {
+                CombatHUDManager.Instance.TriggerGlitchEffect(isPlayer: true);
+            }
+
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.TriggerDashFOV();
+            }
+        }
+
+        RaiseEnergyEvents(oldEnergy);
+    }
+
+    private void RaiseEnergyEvents(int oldEnergy)
+    {
+        OnEnergyChanged?.Invoke(currentEnergyGrids, maxEnergyGrids);
+
+        if (oldEnergy < maxEnergyGrids && currentEnergyGrids == maxEnergyGrids)
+        {
+            OnEnergyFilled?.Invoke();
+        }
     }
 }

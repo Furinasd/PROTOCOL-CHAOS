@@ -30,18 +30,18 @@ public class PlayerController : MonoBehaviour
     [HideInInspector] public float environmentalSpeedMultiplier = 1f; // 用于环境（如Puddle）的持续减速
     public float smoothRotationTime = 0.1f;
     private float currentVelocity;
-    
+
     [Header("🦘 极致跳跃手感 (Advanced Jump)")]
     public float jumpHeight = 2.5f;
     public float gravity = -25f;
     public float fallMultiplier = 2.0f; // 下落时重力加倍，摆脱"气球感"
     private float lastJumpTime = -10f;
     public float LastJumpTime => lastJumpTime;
-    
+
     // ACT 手感核心：容错机制
-    private float coyoteTime = 0.15f;    
+    private float coyoteTime = 0.15f;
     private float coyoteTimeCounter;
-    private float jumpBufferTime = 0.15f; 
+    private float jumpBufferTime = 0.15f;
     private float jumpBufferCounter;
 
     [Header("💨 空间规避 (Dash)")]
@@ -122,7 +122,7 @@ public class PlayerController : MonoBehaviour
                 cachedCombatReceiver.currentHP = Mathf.Max(0f, cachedCombatReceiver.currentHP - dmg);
                 if (cachedCombatReceiver.currentHP <= 0f)
                     Debug.Log("<color=red>☠️ [Env] 污染区将玩家 HP 扣至 0</color>");
-                
+
                 // 🎵 播放环境伤害/灼烧音效 (0.1s轮询频次，音量压低)
                 if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleHazard != null)
                     AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleHazard, 0.3f);
@@ -152,13 +152,21 @@ public class PlayerController : MonoBehaviour
 
     [Header("🛡️ 软边界控制 (Arena Boundaries)")]
     public float arenaRadius = 20f;
+    [SerializeField] private Transform arenaCenterOverride;
+    [SerializeField] private float boundaryCheckDelay = 1.0f;
+    [SerializeField] private float fallCheckDelay = 1.0f;
     private bool isProcessingOutOfBounds = false;
+    private Vector3 initialCenterPosition;
+    private float spawnTimestamp;
 
     private void Start()
     {
         // 【新规：隐藏与锁定鼠标】
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
+
+        spawnTimestamp = Time.time;
+        initialCenterPosition = transform.position;
 
         cc = GetComponent<CharacterController>();
         if (Camera.main != null) cam = Camera.main.transform;
@@ -168,11 +176,16 @@ public class PlayerController : MonoBehaviour
     {
         if (Keyboard.current == null) return;
 
+        RefreshArenaCenterDuringStartup();
+
         // 软边界检测
-        CheckArenaBoundaries();
+        if (Time.time - spawnTimestamp >= boundaryCheckDelay)
+        {
+            CheckArenaBoundaries();
+        }
 
         // 掉落检测
-        if (transform.position.y < -15f)
+        if (Time.time - spawnTimestamp >= fallCheckDelay && transform.position.y < -15f)
         {
             TriggerFallDeath();
             return;
@@ -211,11 +224,30 @@ public class PlayerController : MonoBehaviour
 
     private void CheckArenaBoundaries()
     {
-        // 仅检测水平距离 (X-Z)
-        Vector3 flatPos = new Vector3(transform.position.x, 0, transform.position.z);
-        if (flatPos.magnitude > arenaRadius && !isProcessingOutOfBounds)
+        // 仅检测水平距离 (X-Z)，以初始位置为准 (解决开始立刻死亡的Bug)
+        Vector3 currentFlatPos = new Vector3(transform.position.x, 0, transform.position.z);
+        Vector3 centerFlatPos = new Vector3(initialCenterPosition.x, 0, initialCenterPosition.z);
+        float distanceFromCenter = Vector3.Distance(currentFlatPos, centerFlatPos);
+
+        if (distanceFromCenter > arenaRadius && !isProcessingOutOfBounds)
         {
+            Debug.Log($"<color=orange>⚠️ [Boundary] OOB Trigger | pos={currentFlatPos} center={centerFlatPos} dist={distanceFromCenter:F2} radius={arenaRadius:F2}</color>");
             StartCoroutine(TriggerOutOfBoundsPunishment());
+        }
+    }
+
+    private void RefreshArenaCenterDuringStartup()
+    {
+        if (arenaCenterOverride != null)
+        {
+            initialCenterPosition = arenaCenterOverride.position;
+            return;
+        }
+
+        // 启动宽限期内，允许圆心跟随玩家，吸收同帧/跨帧的出身点重定位。
+        if (Time.time - spawnTimestamp < boundaryCheckDelay)
+        {
+            initialCenterPosition = transform.position;
         }
     }
 
@@ -223,16 +255,16 @@ public class PlayerController : MonoBehaviour
     {
         isProcessingOutOfBounds = true;
         Debug.Log("<color=red>⚠️ [Boundary] 极性紊乱！警告：您已脱离秩序核心区域！重开中...</color>");
-        
+
         // 视觉反馈：强抖动 + 视角冲击
         if (CombatFeedbackManager.Instance != null)
             CombatFeedbackManager.Instance.TriggerDamageFeedback();
 
         // 强制进入顿帧状态增强死亡感
         EnterHitlag(0.4f);
-        
+
         yield return new WaitForSecondsRealtime(0.5f);
-        
+
         TriggerFallDeath();
     }
 
@@ -312,7 +344,7 @@ public class PlayerController : MonoBehaviour
         float currentGravity = gravity;
         if (velocity.y < 0 || (velocity.y > 0 && !Keyboard.current.spaceKey.isPressed))
         {
-            currentGravity *= fallMultiplier; 
+            currentGravity *= fallMultiplier;
         }
 
         velocity.y += currentGravity * Time.deltaTime;
@@ -323,7 +355,7 @@ public class PlayerController : MonoBehaviour
     {
         if (cc.isGrounded && velocity.y < 0) { velocity.y = -2f; }
         velocity.y += gravity * fallMultiplier * Time.deltaTime;
-        
+
         // 应用外部冲击力 (Impact)
         if (externalImpact.magnitude > 0.2f)
         {
@@ -352,7 +384,7 @@ public class PlayerController : MonoBehaviour
         if (Mouse.current.rightButton.wasPressedThisFrame) BufferInput(InputType.SwitchPolarity);
         if (Mouse.current.leftButton.wasPressedThisFrame) BufferInput(InputType.Parry);
         if (Keyboard.current.fKey.wasPressedThisFrame) BufferInput(InputType.Execute);
-        
+
         // 清理过期指令
         inputBuffer.RemoveAll(i => Time.time - i.timestamp > inputBufferDuration);
     }
@@ -369,7 +401,7 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < inputBuffer.Count; i++)
         {
             var input = inputBuffer[i];
-            
+
             // 执行 Dash
             if (input.type == InputType.Dash && Time.time >= lastDashTime + dashCooldown)
             {
@@ -377,7 +409,7 @@ public class PlayerController : MonoBehaviour
                 StartCoroutine(DashRoutine());
                 return;
             }
-            
+
             // 其他指令 (Switch, Parry, Execute) 由对应的战斗脚本每帧查询 ConsumeBuffer
         }
     }
@@ -408,7 +440,7 @@ public class PlayerController : MonoBehaviour
         currentState = PlayerState.Dashing;
         lastDashTime = Time.time;
         Debug.Log($"<color=cyan>💨 [Action] Player Dashed at {lastDashTime:F2}</color>");
-        
+
         // 🎵 播放冲刺音效
         if (AudioManager.Instance != null && AudioManager.Instance.sfxPlayerDash != null)
             AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPlayerDash);
@@ -424,8 +456,8 @@ public class PlayerController : MonoBehaviour
         float v = Keyboard.current.wKey.ReadValue() - Keyboard.current.sKey.ReadValue();
         if (h != 0 || v != 0)
         {
-             dashDir = (Quaternion.Euler(0f, cam != null ? cam.eulerAngles.y : 0f, 0f) * new Vector3(h, 0, v)).normalized;
-             transform.rotation = Quaternion.LookRotation(dashDir);
+            dashDir = (Quaternion.Euler(0f, cam != null ? cam.eulerAngles.y : 0f, 0f) * new Vector3(h, 0, v)).normalized;
+            transform.rotation = Quaternion.LookRotation(dashDir);
         }
 
         // 视效增强：形变 (Squash and Stretch)
@@ -435,7 +467,8 @@ public class PlayerController : MonoBehaviour
             // 【修复屏幕被向下拉的抖动问题】不再压缩 Y 轴，只压扁 X 轴并拉长 Z 轴，防止由于高度变化导致的 Cinemachine 锁定点疯狂下坠
             visualRoot.DOScale(new Vector3(origScale.x * 0.7f, origScale.y * 1.0f, origScale.z * 1.5f), dashDuration * 0.3f)
                 .SetEase(Ease.OutExpo)
-                .OnComplete(() => {
+                .OnComplete(() =>
+                {
                     visualRoot.DOScale(origScale, dashDuration * 0.7f).SetEase(Ease.OutBounce);
                 });
         }
@@ -451,7 +484,7 @@ public class PlayerController : MonoBehaviour
             float t = elapsed / dashDuration;
             // speed 从 dashSpeed*1.5 快速衰减到 dashSpeed*0.2
             float currentSpeed = Mathf.Lerp(dashSpeed * 1.5f, dashSpeed * 0.2f, t * t); // 使用 t*t 产生类似 easeOutQuad 的减速感
-            
+
             // 【修复玩家下坠与跳跃平滑度】不再强制施加 Vector3.down * 4f 这会导致陡坡异常下坠和相机剧烈抖动
             // 改为仅保留角色控制器所需的极微小贴地力(Vector3.down * 0.5f)即可保证 isGrounded
             cc.Move((dashDir * currentSpeed + Vector3.down * 0.5f) * Time.deltaTime);
@@ -480,12 +513,12 @@ public class PlayerController : MonoBehaviour
         {
             previousStateBeforeHitlag = currentState;
         }
-        
+
         currentState = PlayerState.Hitlag;
-        
+
         // 这里配合 Time.timeScale 做出极其夸张的顿帧停顿感
-        yield return new WaitForSecondsRealtime(duration); 
-        
+        yield return new WaitForSecondsRealtime(duration);
+
         // 恢复之前的状态
         currentState = previousStateBeforeHitlag;
         hitlagCoroutine = null;
@@ -493,7 +526,7 @@ public class PlayerController : MonoBehaviour
     private void ResetLevel()
     {
         Debug.Log("<color=red>💀 [System] 坠入深渊/脱离核心区... 秩序重置。</color>");
-        
+
         // 【核心修复】：SceneManager.LoadScene 不会自动重置 Time.timeScale。
         // 如果在顿帧(Hitlag)中途触发重置，会导致新场景卡在慢动作下，影响输入判定。
         Time.timeScale = 1f;
@@ -501,7 +534,7 @@ public class PlayerController : MonoBehaviour
 
         // 【3C Day1】防止 FOV Tween 残留导致新场景镜头漂移
         CameraController.Instance?.ResetFOV();
-        
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
     #endregion
