@@ -70,6 +70,13 @@ public class EnemyAttackBrain : MonoBehaviour
     [Tooltip("污染区大小随机上限")]
     public float puddleSizeMultiplierMax = 1.2f;
 
+    [Header("⚡ 物理优化")]
+    [Tooltip("必须设置为包含 Ground 层，否则 Puddle 射线无法命中地面！")]
+    public LayerMask groundLayerMask;
+
+    // 预分配 RaycastHit 缓冲区，避免每次攻击都分配新数组（零 GC）
+    private static readonly RaycastHit[] groundHitBuffer = new RaycastHit[8];
+
     private EnemyVisualController visualController;
     private EnemyShapeMorpher shapeMorpher;
     private EnemyPosture posture;
@@ -239,55 +246,57 @@ public class EnemyAttackBrain : MonoBehaviour
     {
         if (playerTransform == null) return;
 
-        // 【新规：概率控制判定】
+        // 概率控制判定
         if (Random.value > puddleSpawnProbability)
         {
-            Debug.Log("<color=grey>判定：本次攻击不生成污染区。</color>");
             return;
         }
 
-        // 【新规】：在攻击瞬间玩家所在位置生成
+        // 在攻击瞬间玩家所在位置生成
         Vector3 spawnPos = playerTransform.position;
-        Debug.Log($"<color=white>🔍 [Brain] 尝试在玩家位置 {spawnPos} 下方生成污染区...</color>");
 
-        RaycastHit[] hits = Physics.RaycastAll(spawnPos + Vector3.up * 5f, Vector3.down, 10f);
-        bool foundGround = false;
-
-        foreach (var hit in hits)
+        // 【极限优化】RaycastNonAlloc：使用预分配 Buffer，零 GC
+        // 同时使用 LayerMask 在 C++ 物理层直接过滤非地面对象，彻底告别 name.Contains() 字符串毒药
+        if (groundLayerMask == 0)
         {
-            if (hit.collider.CompareTag("Ground") || hit.collider.gameObject.name.Contains("Ground") || hit.collider.gameObject.name.Contains("Plane"))
-            {
-                Debug.Log($"<color=white>✅ [Brain] 射线击中地面: {hit.point}，正在回收/提取 Puddle。</color>");
-
-                if (PuddleManager.Instance != null)
-                {
-                    // 按照面板配置决定生成类型
-                    bool isSpecial = Random.value <= puddleSpecialProbability;
-                    float sizeMultiplier = Random.Range(puddleSizeMultiplierMin, puddleSizeMultiplierMax);
-
-                    // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
-                    ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(hit.point + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
-
-                    // 🎵 播放污染区生成音效
-                    if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleSpawn != null)
-                        AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleSpawn);
-
-                    // 应用缩放
-                    if (puddle != null) puddle.ApplySizeMultiplier(sizeMultiplier);
-                }
-                else
-                {
-                    Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空！</color>");
-                }
-
-                foundGround = true;
-                break;
-            }
+            Debug.LogWarning("<color=yellow>⚠️ [Brain] groundLayerMask 未配置！请在 Inspector 中勾选 Ground 层。</color>");
+            return;
         }
 
-        if (!foundGround)
+        int hitCount = Physics.RaycastNonAlloc(
+            spawnPos + Vector3.up * 5f,
+            Vector3.down,
+            groundHitBuffer,
+            10f,
+            groundLayerMask
+        );
+
+        if (hitCount > 0)
         {
-            Debug.LogWarning($"<color=yellow>⚠️ [Brain] 射线未击中地面，无法放置污染区。spawnPos={spawnPos}</color>");
+            Vector3 groundPoint = groundHitBuffer[0].point;
+
+            if (PuddleManager.Instance != null)
+            {
+                bool isSpecial = Random.value <= puddleSpecialProbability;
+                float sizeMultiplier = Random.Range(puddleSizeMultiplierMin, puddleSizeMultiplierMax);
+
+                // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
+                ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(groundPoint + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
+
+                // 🎵 播放污染区生成音效
+                if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleSpawn != null)
+                    AudioManager.Instance.PlaySFX(AudioManager.Instance.sfxPuddleSpawn);
+
+                if (puddle != null) puddle.ApplySizeMultiplier(sizeMultiplier);
+            }
+            else
+            {
+                Debug.LogError("<color=red>🛑 [Brain] PuddleManager.Instance 为空！</color>");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"<color=yellow>⚠️ [Brain] 射线未命中 Ground 层，Puddle 无法生成。请确认地面 Layer 已设为 Ground。</color>");
         }
     }
 

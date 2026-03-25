@@ -36,6 +36,9 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     [SerializeField] private bool allowAbsorbEnergyReward = true;
     [SerializeField] private bool allowDodgeEnergyReward = true;
 
+    // 【零 GC 优化】预分配 OverlapSphere 结果缓冲区（不在堆上分配 Collider 数组）
+    private static readonly Collider[] executeBuffer = new Collider[16];
+
     // 状态标记
     public bool isStandingOnAnomalyCore = false;
     private float lastBlockInputTime = -10f;
@@ -297,9 +300,13 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
     private void TryExecuteEnemy()
     {
-        Collider[] hits = Physics.OverlapSphere(transform.position, 3.5f); // 略微增加范围以提升手感
-        foreach (var hit in hits)
+        // 【零 GC 优化】NonAlloc 版本：复用静态 Buffer，不在管理堆上分配新的 Collider 数组
+        int hitCount = Physics.OverlapSphereNonAlloc(transform.position, 3.5f, executeBuffer);
+        for (int i = 0; i < hitCount; i++)
         {
+            Collider hit = executeBuffer[i];
+            if (hit == null) continue;
+
             EnemyPosture target = hit.GetComponentInParent<EnemyPosture>(); // 适配可能的子级碰撞体
             if (target != null && target.IsBroken)
             {

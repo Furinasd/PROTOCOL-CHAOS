@@ -53,6 +53,9 @@ public class CombatHUDManager : MonoBehaviour
     private int executePromptScanFrameInterval = 5;
     private static readonly Collider[] executePromptOverlapBuffer = new Collider[24];
 
+    // 【优化】缓存 Canvas 引用，避免在 Update 每帧 FindObjectsByType
+    private Canvas[] cachedCanvases;
+
     private void Awake()
     {
         if (_instance == null) _instance = this;
@@ -64,8 +67,11 @@ public class CombatHUDManager : MonoBehaviour
 
     private void Start()
     {
+        // 将 Canvas 查找收敛到 Start 时执行一次，后续通过缓存数组使用
+        cachedCanvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+
         RefreshReferences();
-        if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null); // 初始隐藏，直到发现 Boss
+        if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null);
     }
 
     public void RefreshReferences()
@@ -91,9 +97,14 @@ public class CombatHUDManager : MonoBehaviour
 
     private void Update()
     {
-        // 如果引用丢失（如场景重载），尝试重新获取
-        if (playerReceiver == null) RefreshReferences();
-        if (bossPosture == null && Time.frameCount % 10 == 0) RefreshReferences(); // 每10帧检查Boss
+        // 【已优化】移除了每帧 / 每 10 帧 FindObjectsByType 调用。
+        // HUD 现在完全依赖事件驱动（OnHealthChanged、OnPostureChanged）。
+        // 如果引用丢失（如场景重载），外部逻辑（如 GameOverManager、QuestFlowManager）应调用 RefreshReferences()。
+        if (playerReceiver == null)
+        {
+            // 仅在引用完全丢失时作兑底（每 30 帧一次，降低开销）
+            if (Time.frameCount % 30 == 0) RefreshReferences();
+        }
 
         EnsureCanvasScaleValid();
         EnsureHudBindings();
@@ -312,9 +323,12 @@ public class CombatHUDManager : MonoBehaviour
 
     private void EnsureCanvasScaleValid()
     {
-        Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
-        foreach (var c in canvases)
+        // 【优化】使用缓存的 Canvas 巅照，不再每帧执行昂贵的 FindObjectsByType
+        if (cachedCanvases == null) return;
+
+        for (int i = 0; i < cachedCanvases.Length; i++)
         {
+            Canvas c = cachedCanvases[i];
             if (c == null) continue;
             if (c.renderMode != RenderMode.ScreenSpaceOverlay && c.renderMode != RenderMode.ScreenSpaceCamera) continue;
 

@@ -385,8 +385,16 @@ public class PlayerController : MonoBehaviour
         if (Mouse.current.leftButton.wasPressedThisFrame) BufferInput(InputType.Parry);
         if (Keyboard.current.fKey.wasPressedThisFrame) BufferInput(InputType.Execute);
 
-        // 清理过期指令
-        inputBuffer.RemoveAll(i => Time.time - i.timestamp > inputBufferDuration);
+        // 【零 GC 优化】弃用 RemoveAll(lambda) —— 每次调用都会分配一个 Delegate 对象到托管堆
+        // 改用反向 for 循环 + RemoveAt：无堆分配，且对于 0-3 长度的小列表性能更优
+        float currentTime = Time.time;
+        for (int i = inputBuffer.Count - 1; i >= 0; i--)
+        {
+            if (currentTime - inputBuffer[i].timestamp > inputBufferDuration)
+            {
+                inputBuffer.RemoveAt(i);
+            }
+        }
     }
 
     private void BufferInput(InputType type)
