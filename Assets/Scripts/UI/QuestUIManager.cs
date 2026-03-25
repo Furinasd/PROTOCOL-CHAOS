@@ -48,6 +48,7 @@ public class QuestUIManager : MonoBehaviour
         if (questFlowManager != null)
         {
             questFlowManager.OnPhaseChanged += HandlePhaseChanged;
+            questFlowManager.OnPhaseProgressChanged += HandlePhaseProgressChanged;
         }
 
         if (playerEnergySystem != null)
@@ -62,6 +63,7 @@ public class QuestUIManager : MonoBehaviour
         if (questFlowManager != null)
         {
             questFlowManager.OnPhaseChanged -= HandlePhaseChanged;
+            questFlowManager.OnPhaseProgressChanged -= HandlePhaseProgressChanged;
         }
 
         if (playerEnergySystem != null)
@@ -73,20 +75,80 @@ public class QuestUIManager : MonoBehaviour
 
     private void HandlePhaseChanged(QuestFlowManager.QuestPhase phase)
     {
-        string text = phase switch
-        {
-            QuestFlowManager.QuestPhase.Phase1 => "Phase 1 - 同色吸收 3 次",
-            QuestFlowManager.QuestPhase.Phase2 => "Phase 2 - 异色弹刀 2 次（能量真实消耗）",
-            QuestFlowManager.QuestPhase.Phase3 => "Phase 3 - 开放完整秩序系统",
-            QuestFlowManager.QuestPhase.Phase4 => "Phase 4 - 处决 Tutorial Boss",
-            QuestFlowManager.QuestPhase.Completed => "Clear - 秩序已重建",
-            _ => string.Empty
-        };
+        string text = BuildPhaseText(phase, 0, 0);
 
         if (!string.IsNullOrEmpty(text))
         {
             PlayTypewriter(text);
         }
+    }
+
+    private void HandlePhaseProgressChanged(QuestFlowManager.QuestPhase phase, int current, int target)
+    {
+        if (target <= 0 || current <= 0)
+        {
+            return;
+        }
+
+        string text = BuildPhaseText(phase, current, target);
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        if (typingRoutine != null)
+        {
+            StopCoroutine(typingRoutine);
+            typingRoutine = null;
+        }
+
+        if (questText != null)
+        {
+            questText.text = text;
+        }
+
+        TriggerChargeJuice();
+    }
+
+    private string BuildPhaseText(QuestFlowManager.QuestPhase phase, int current, int target)
+    {
+        return phase switch
+        {
+            // 【Phase 1】：协议初始化 - 教导玩家极性切换和吸收机制
+            QuestFlowManager.QuestPhase.Phase1 => 
+                $"【协议初始化】\n" +
+                $"检测到环境混沌。请通过【鼠标右键】切换极性，\n" +
+                $"以吸收同频能量。\n" +
+                $"进度：({current}/{Mathf.Max(1, target)})",
+
+            // 【Phase 2】：熵减测试 - 教导玩家完美弹刀
+            QuestFlowManager.QuestPhase.Phase2 => 
+                $"【熵减测试】\n" +
+                $"遭遇高维畸变体。请在攻击瞬间【鼠标左键】触发，\n" +
+                $"通过【异色湮灭】击碎敌方外壳。\n" +
+                $"进度：({current}/{Mathf.Max(1, target)})",
+
+            // 【Phase 3】：能量循环 - 教导玩家积累和反击
+            QuestFlowManager.QuestPhase.Phase3 => 
+                $"【能量循环】\n" +
+                $"实战测试开启。使用【极限闪避】或【滑行】获取能量，\n" +
+                $"累积 3 格能量后通过【异色湮灭】反击。\n" +
+                $"进度：({current}/{Mathf.Max(1, target)})",
+
+            // 【Phase 4】：绝对失序 - Boss 战
+            QuestFlowManager.QuestPhase.Phase4 => 
+                "【绝对失序】\n" +
+                "不稳定变量已过载。\n" +
+                "歼灭【终极混沌核心】！",
+
+            // 完成状态
+            QuestFlowManager.QuestPhase.Completed => 
+                "【秩序已重建】\n" +
+                "训练闭环完成。\n" +
+                "你已掌握秩序之力。",
+
+            _ => string.Empty
+        };
     }
 
     private void HandleTutorialCheatFilled()

@@ -41,6 +41,8 @@ public class CombatHUDManager : MonoBehaviour
 
     private PlayerCombatReceiver playerReceiver;
     private EnemyPosture bossPosture;
+    private PlayerCombatReceiver subscribedPlayerReceiver;
+    private EnemyPosture subscribedBossPosture;
     private bool autoHudBuilt;
 
     private void Awake()
@@ -60,6 +62,8 @@ public class CombatHUDManager : MonoBehaviour
 
     public void RefreshReferences()
     {
+        UnbindHUDEvents();
+
         playerReceiver = FindFirstObjectByType<PlayerCombatReceiver>();
         if (playerReceiver == null)
         {
@@ -72,13 +76,16 @@ public class CombatHUDManager : MonoBehaviour
 
         if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null);
 
+        BindHUDEvents();
+
         EnsureHudBindings();
     }
 
     private void Update()
     {
         // 如果引用丢失（如场景重载），尝试重新获取
-        if (playerReceiver == null || bossPosture == null) RefreshReferences();
+        if (playerReceiver == null) RefreshReferences();
+        if (bossPosture == null && Time.frameCount % 10 == 0) RefreshReferences(); // 每10帧检查Boss
 
         EnsureCanvasScaleValid();
         EnsureHudBindings();
@@ -92,12 +99,20 @@ public class CombatHUDManager : MonoBehaviour
     {
         if (playerReceiver == null || playerHPFill == null) return;
 
-        float target = Mathf.Clamp01(playerReceiver.currentHP / playerReceiver.maxHP);
+        float target = Mathf.Clamp01(playerReceiver.currentHP / Mathf.Max(1f, playerReceiver.maxHP));
         playerHPFill.fillAmount = target;
 
-        if (playerHPEaseFill != null && playerHPEaseFill.fillAmount > target)
+        if (playerHPEaseFill != null)
         {
-            playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 5f);
+            if (playerHPEaseFill.fillAmount > target)
+            {
+                playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 5f);
+            }
+            else if (Mathf.Abs(playerHPEaseFill.fillAmount - target) > 0.001f)
+            {
+                // 上升更快
+                playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
+            }
         }
     }
 
@@ -123,12 +138,19 @@ public class CombatHUDManager : MonoBehaviour
             return;
         }
 
-        float target = Mathf.Clamp01(bossPosture.currentHP / bossPosture.maxHP);
+        float target = Mathf.Clamp01(bossPosture.currentHP / Mathf.Max(1f, bossPosture.maxHP));
         bossHPFill.fillAmount = target;
 
-        if (bossHPEaseFill != null && bossHPEaseFill.fillAmount > target)
+        if (bossHPEaseFill != null)
         {
-            bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 3f);
+            if (bossHPEaseFill.fillAmount > target)
+            {
+                bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 3f);
+            }
+            else if (Mathf.Abs(bossHPEaseFill.fillAmount - target) > 0.001f)
+            {
+                bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 6f);
+            }
         }
 
         if (bossPostureFill != null)
@@ -136,9 +158,16 @@ public class CombatHUDManager : MonoBehaviour
             float postureTarget = bossPosture.PosturePercentage;
             bossPostureFill.fillAmount = postureTarget;
 
-            if (bossPostureEaseFill != null && bossPostureEaseFill.fillAmount > postureTarget)
+            if (bossPostureEaseFill != null)
             {
-                bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 5f);
+                if (bossPostureEaseFill.fillAmount > postureTarget)
+                {
+                    bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 5f);
+                }
+                else if (Mathf.Abs(bossPostureEaseFill.fillAmount - postureTarget) > 0.001f)
+                {
+                    bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 8f);
+                }
             }
         }
     }
@@ -150,6 +179,75 @@ public class CombatHUDManager : MonoBehaviour
 
         if (bossHPFill != null)
             bossHPFill.fillAmount = Mathf.Clamp01(bossPosture.currentHP / bossPosture.maxHP);
+
+        if (bossPostureFill != null)
+            bossPostureFill.fillAmount = bossPosture.PosturePercentage;
+    }
+
+    private void BindHUDEvents()
+    {
+        if (playerReceiver != null && playerReceiver != subscribedPlayerReceiver)
+        {
+            if (subscribedPlayerReceiver != null)
+            {
+                subscribedPlayerReceiver.OnHealthChanged -= HandlePlayerHealthChanged;
+            }
+
+            subscribedPlayerReceiver = playerReceiver;
+            subscribedPlayerReceiver.OnHealthChanged += HandlePlayerHealthChanged;
+            HandlePlayerHealthChanged(subscribedPlayerReceiver.currentHP, subscribedPlayerReceiver.maxHP);
+        }
+
+        if (bossPosture != null && bossPosture != subscribedBossPosture)
+        {
+            if (subscribedBossPosture != null)
+            {
+                subscribedBossPosture.OnHealthChanged -= HandleBossStatsChanged;
+                subscribedBossPosture.OnPostureChanged -= HandleBossStatsChanged;
+            }
+
+            subscribedBossPosture = bossPosture;
+            subscribedBossPosture.OnHealthChanged += HandleBossStatsChanged;
+            subscribedBossPosture.OnPostureChanged += HandleBossStatsChanged;
+            HandleBossStatsChanged(subscribedBossPosture.currentHP, subscribedBossPosture.maxHP);
+        }
+    }
+
+    private void UnbindHUDEvents()
+    {
+        if (subscribedPlayerReceiver != null)
+        {
+            subscribedPlayerReceiver.OnHealthChanged -= HandlePlayerHealthChanged;
+        }
+
+        if (subscribedBossPosture != null)
+        {
+            subscribedBossPosture.OnHealthChanged -= HandleBossStatsChanged;
+            subscribedBossPosture.OnPostureChanged -= HandleBossStatsChanged;
+        }
+    }
+
+    private void HandlePlayerHealthChanged(float current, float max)
+    {
+        float target = Mathf.Clamp01(current / Mathf.Max(1f, max));
+
+        if (playerHPFill != null)
+            playerHPFill.fillAmount = target;
+
+        if (playerHPEaseFill != null && playerHPEaseFill.fillAmount > target)
+            playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 5f);
+    }
+
+    private void HandleBossStatsChanged(float current, float max)
+    {
+        if (bossPosture == null)
+            return;
+
+        if (bossHUDParent != null)
+            bossHUDParent.SetActive(current > 0f);
+
+        if (bossHPFill != null)
+            bossHPFill.fillAmount = Mathf.Clamp01(current / Mathf.Max(1f, max));
 
         if (bossPostureFill != null)
             bossPostureFill.fillAmount = bossPosture.PosturePercentage;

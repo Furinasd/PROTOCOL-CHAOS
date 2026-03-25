@@ -15,6 +15,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 {
     public event Action OnSamePolarityAbsorbed;
     public event Action OnPerfectParrySucceeded;
+    public event Action<float, float> OnHealthChanged;
 
     private PlayerController controller;
     private PlayerPolarity polarity;
@@ -47,6 +48,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         polarity = GetComponent<PlayerPolarity>();
         energySystem = GetComponent<PlayerEnergySystem>();
         lastFramePosition = transform.position;
+        NotifyHealthChanged();
     }
 
     private void Update()
@@ -208,6 +210,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
         Debug.Log($"<color=red>🩸 混沌入侵！极性不符或闪避失败，受到 {calculatedDamage} 判定伤害！</color>");
         currentHP -= calculatedDamage;
+        NotifyHealthChanged();
 
         // 🎵 播放受击音效
         if (AudioManager.Instance != null && AudioManager.Instance.sfxPlayerDamage != null)
@@ -238,6 +241,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     public void Die()
     {
         if (currentHP > 0) currentHP = 0;
+        NotifyHealthChanged();
 
         Debug.Log("<color=red>💀 玩家阵亡！触发物理锚定与仪式感定格...</color>");
 
@@ -273,6 +277,11 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
+    }
+
+    private void NotifyHealthChanged()
+    {
+        OnHealthChanged?.Invoke(currentHP, maxHP);
     }
 
     private void ApplyKnockback(Vector3 attackerPos)

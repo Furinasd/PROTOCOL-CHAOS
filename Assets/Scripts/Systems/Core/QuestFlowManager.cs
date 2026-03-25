@@ -39,6 +39,7 @@ public class QuestFlowManager : MonoBehaviour
     [SerializeField] private GameObject[] phase2EnemyPrefabs;
     [SerializeField] private GameObject[] phase3EnemyPrefabs;
     [SerializeField] private GameObject phase4BossPrefab;
+    [SerializeField] private bool useSpawnRootChildrenAsTemplateFallback = true;
 
     [Header("Debug")]
     [SerializeField] private bool verboseLog = true;
@@ -46,6 +47,7 @@ public class QuestFlowManager : MonoBehaviour
     public QuestPhase CurrentPhase { get; private set; } = QuestPhase.None;
 
     public event Action<QuestPhase> OnPhaseChanged;
+    public event Action<QuestPhase, int, int> OnPhaseProgressChanged;
     public event Action OnFlowCompleted;
 
     private int absorbCounter;
@@ -171,6 +173,7 @@ public class QuestFlowManager : MonoBehaviour
 
         SpawnForCurrentPhase(phase1EnemyPrefabs, phase1SpawnRoot);
         ApplyPhaseLight(1);
+        EmitCurrentPhaseProgress();
         Log("Phase1 开始：同色吸收教学（目标 3 次），关闭闪避充能奖励。");
     }
 
@@ -185,6 +188,7 @@ public class QuestFlowManager : MonoBehaviour
 
         SpawnForCurrentPhase(phase2EnemyPrefabs, phase2SpawnRoot);
         ApplyPhaseLight(2);
+        EmitCurrentPhaseProgress();
         Log("Phase2 开始：保留真实耗能弹刀，敌人前摇前自动充满能量。");
     }
 
@@ -199,6 +203,7 @@ public class QuestFlowManager : MonoBehaviour
 
         SpawnForCurrentPhase(phase3EnemyPrefabs, phase3SpawnRoot);
         ApplyPhaseLight(3);
+        EmitCurrentPhaseProgress();
         Log("Phase3 开始：开启完整积攒机制（目标：能量回满 2 次）。");
     }
 
@@ -211,12 +216,19 @@ public class QuestFlowManager : MonoBehaviour
         {
             Transform spawnRoot = phase4SpawnRoot != null ? phase4SpawnRoot : transform;
             GameObject boss = Instantiate(phase4BossPrefab, spawnRoot.position, spawnRoot.rotation);
+            boss.SetActive(true);
             activePhaseEntities.Add(boss);
             Log("Phase4 开始：Boss 登场，灯光切换为血红。\n");
             return;
         }
 
-        Log("Phase4 开始：未配置 Boss 预制体，流程将直接等待已存在敌人清空。");
+        if (useSpawnRootChildrenAsTemplateFallback && TrySpawnFromRootChildren(phase4SpawnRoot, "Phase4-Boss"))
+        {
+            Log("Phase4 开始：未配置 Boss Prefab，已使用 Phase4 SpawnRoot 子物体模板刷出。\n");
+            return;
+        }
+
+        Log("Phase4 开始：未配置 Boss 预制体，且 SpawnRoot 下无可用模板，当前阶段将无法刷怪。");
     }
 
     private IEnumerator TransitionToNextPhase()
@@ -250,6 +262,7 @@ public class QuestFlowManager : MonoBehaviour
         }
 
         absorbCounter++;
+        EmitCurrentPhaseProgress();
         Log($"Phase1 吸收计数: {absorbCounter}/{phase1AbsorbTarget}");
     }
 
@@ -261,6 +274,7 @@ public class QuestFlowManager : MonoBehaviour
         }
 
         perfectParryCounter++;
+        EmitCurrentPhaseProgress();
         Log($"Phase2 完美弹刀计数: {perfectParryCounter}/{phase2PerfectParryTarget}");
     }
 
@@ -272,7 +286,24 @@ public class QuestFlowManager : MonoBehaviour
         }
 
         energyFullCounter++;
+        EmitCurrentPhaseProgress();
         Log($"Phase3 满能计数: {energyFullCounter}/{phase3EnergyFullTarget}");
+    }
+
+    private void EmitCurrentPhaseProgress()
+    {
+        switch (CurrentPhase)
+        {
+            case QuestPhase.Phase1:
+                OnPhaseProgressChanged?.Invoke(CurrentPhase, absorbCounter, phase1AbsorbTarget);
+                break;
+            case QuestPhase.Phase2:
+                OnPhaseProgressChanged?.Invoke(CurrentPhase, perfectParryCounter, phase2PerfectParryTarget);
+                break;
+            case QuestPhase.Phase3:
+                OnPhaseProgressChanged?.Invoke(CurrentPhase, energyFullCounter, phase3EnergyFullTarget);
+                break;
+        }
     }
 
     private void HandleEnemyTelegraphStarted(EnemyAttackBrain brain, Polarity polarity)
@@ -302,23 +333,80 @@ public class QuestFlowManager : MonoBehaviour
     {
         CleanupActiveEntitiesImmediate();
 
-        if (prefabs == null || prefabs.Length == 0)
+        Transform root = spawnRoot != null ? spawnRoot : transform;
+        bool spawnedAny = false;
+
+        if (prefabs != null && prefabs.Length > 0)
         {
-            return;
+            for (int i = 0; i < prefabs.Length; i++)
+            {
+                if (prefabs[i] == null)
+                {
+                    continue;
+                }
+
+                Vector3 offset = new Vector3(i * 1.8f, 0f, 0f);
+                GameObject instance = Instantiate(prefabs[i], root.position + offset, root.rotation);
+                instance.SetActive(true);
+                activePhaseEntities.Add(instance);
+                spawnedAny = true;
+            }
         }
 
-        Transform root = spawnRoot != null ? spawnRoot : transform;
-        for (int i = 0; i < prefabs.Length; i++)
+        if (!spawnedAny && useSpawnRootChildrenAsTemplateFallback)
         {
-            if (prefabs[i] == null)
+            spawnedAny = TrySpawnFromRootChildren(spawnRoot, CurrentPhase.ToString());
+        }
+
+        if (!spawnedAny)
+        {
+            Debug.LogWarning($"[QuestFlow] {CurrentPhase} 未刷出敌人：请检查 Prefab 数组或在 SpawnRoot 下放置(可禁用)敌人模板子物体。", this);
+        }
+    }
+
+    private bool TrySpawnFromRootChildren(Transform spawnRoot, string debugPhase)
+    {
+        if (spawnRoot == null)
+        {
+            return false;
+        }
+
+        bool spawned = false;
+        int spawnedIndex = 0;
+        for (int i = 0; i < spawnRoot.childCount; i++)
+        {
+            Transform child = spawnRoot.GetChild(i);
+            if (child == null || !IsEnemyTemplateCandidate(child.gameObject))
             {
                 continue;
             }
 
-            Vector3 offset = new Vector3(i * 1.8f, 0f, 0f);
-            GameObject instance = Instantiate(prefabs[i], root.position + offset, root.rotation);
+            Vector3 offset = new Vector3(spawnedIndex * 1.8f, 0f, 0f);
+            GameObject instance = Instantiate(child.gameObject, spawnRoot.position + offset, spawnRoot.rotation);
+            instance.name = child.gameObject.name.Replace("(Clone)", string.Empty);
+            instance.SetActive(true);
             activePhaseEntities.Add(instance);
+            spawned = true;
+            spawnedIndex++;
         }
+
+        if (spawned)
+        {
+            Log($"{debugPhase} 使用 SpawnRoot 子物体模板刷怪成功，共 {spawnedIndex} 个。");
+        }
+
+        return spawned;
+    }
+
+    private static bool IsEnemyTemplateCandidate(GameObject go)
+    {
+        if (go == null)
+        {
+            return false;
+        }
+
+        return go.GetComponentInChildren<EnemyAttackBrain>(true) != null ||
+               go.GetComponentInChildren<EnemyPosture>(true) != null;
     }
 
     private bool AnyActiveEntityAlive()

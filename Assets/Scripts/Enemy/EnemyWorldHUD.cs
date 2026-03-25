@@ -41,13 +41,26 @@ public class EnemyWorldHUD : MonoBehaviour
     private void Awake()
     {
         posture = GetComponent<EnemyPosture>();
-        if (posture != null && posture.isBoss)
+        
+        // 确保 posture 存在
+        if (posture == null)
         {
+            Debug.LogWarning($"[EnemyWorldHUD] {gameObject.name} 缺少 EnemyPosture 组件，销毁该HUD。");
             Destroy(this);
             return;
         }
+        
+        // Boss 敌人使用 CombatHUDManager 管理血条，不需要头顶HUD
+        if (posture.isBoss)
+        {
+            Debug.Log($"[EnemyWorldHUD] {gameObject.name} 是Boss，使用中央血条管理，销毁头顶HUD。");
+            Destroy(this);
+            return;
+        }
+        
         mainCam = Camera.main;
         BuildUI();
+        Debug.Log($"[EnemyWorldHUD] 为 {gameObject.name} 创建了头顶血条UI。");
     }
 
     private void LateUpdate()

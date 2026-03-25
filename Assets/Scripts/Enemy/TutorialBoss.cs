@@ -22,7 +22,7 @@ public class TutorialBoss : MonoBehaviour
     [Header("Execute Loop")]
     [SerializeField] private float executeDamagePercent = 0.35f;
     [SerializeField] private float executeFlatDamage = 0f;
-    [SerializeField] private int estimatedExecuteLoops = 3;
+    [SerializeField] private int requiredExecuteCount = 2;
 
     [Header("Finale Juice")]
     [SerializeField] private float finalSlowMotionDuration = 1.2f;
@@ -85,6 +85,12 @@ public class TutorialBoss : MonoBehaviour
         float executeDamage = Mathf.Max(posture.maxHP * executeDamagePercent + executeFlatDamage, 1f);
         posture.TakeDamage(executeDamage);
 
+        // 满足规定处决次数后，强制进入终幕，避免因为血量配置变化导致循环次数漂移。
+        if (executeCount >= Mathf.Max(1, requiredExecuteCount))
+        {
+            posture.TakeDamage(posture.maxHP);
+        }
+
         if (posture.currentHP <= 0f)
         {
             if (!finalSequenceStarted)
@@ -101,7 +107,7 @@ public class TutorialBoss : MonoBehaviour
         }
 
         CurrentState = posture.HealthPercentage <= 0.5f ? BossState.Phase2 : BossState.Phase1;
-        Log($"Boss 被处决 {executeCount} 次，估计总循环 {estimatedExecuteLoops} 次。");
+        Log($"Boss 被处决 {executeCount} 次，目标处决次数 {requiredExecuteCount} 次。");
         return true;
     }
 

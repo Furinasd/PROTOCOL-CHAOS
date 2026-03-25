@@ -32,12 +32,15 @@ public class EnemyPosture : MonoBehaviour
     public event PostureBrokenHandler OnPostureBroken;
     public event System.Action OnExecuted;
     public event System.Action OnEnemyDefeated;
+    public event System.Action<float, float> OnHealthChanged;
+    public event System.Action<float, float> OnPostureChanged;
 
     public void AddPosture(float amount)
     {
         if (IsBroken) return;
         currentPosture = Mathf.Min(currentPosture + amount, maxPosture);
         Debug.Log($"【系统】怪物积累被动熵值：{currentPosture} / {maxPosture}");
+        NotifyStatsChanged();
         NotifyUIImmediate();
 
         if (currentPosture >= maxPosture)
@@ -110,12 +113,18 @@ public class EnemyPosture : MonoBehaviour
             OnEnemyDefeated?.Invoke();
             Debug.Log("<color=red>💠 [处决] 秩序彻底肃清！</color>");
         }
+
+        NotifyStatsChanged();
     }
 
     public void TakeDamage(float damage)
     {
+        float oldHP = currentHP;
         currentHP = Mathf.Max(0, currentHP - damage);
         Debug.Log($"【系统】怪物受到伤害，剩余生命值: {currentHP} / {maxHP}");
+        
+        // 【关键修复】确保事件被立即触发，赋值必须在 Invoke 前完成
+        NotifyStatsChanged();
         NotifyUIImmediate();
 
         // 【新规：UI 反馈】同步触发 Boss 血条抖动
@@ -132,6 +141,7 @@ public class EnemyPosture : MonoBehaviour
     {
         currentPosture = 0f;
         IsBroken = false;
+        NotifyStatsChanged();
         NotifyUIImmediate();
     }
 
@@ -164,5 +174,11 @@ public class EnemyPosture : MonoBehaviour
 
         if (CombatHUDManager.Instance != null)
             CombatHUDManager.Instance.ForceRefreshBossUI();
+    }
+
+    private void NotifyStatsChanged()
+    {
+        OnHealthChanged?.Invoke(currentHP, maxHP);
+        OnPostureChanged?.Invoke(currentPosture, maxPosture);
     }
 }

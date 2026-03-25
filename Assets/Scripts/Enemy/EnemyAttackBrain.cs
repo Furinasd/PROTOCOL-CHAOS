@@ -30,6 +30,13 @@ public class EnemyAttackBrain : MonoBehaviour
     public float telegraphDuration = 0.6f;
     public float attackActiveDuration = 0.25f;
 
+    [Header("📘 教学阶段覆盖")]
+    [Tooltip("启用后，敌人将固定使用指定极性出招（用于 Phase1 蓝色慢速教学）。")]
+    public bool forceAttackPolarity = false;
+    public Polarity forcedAttackPolarity = Polarity.Blue;
+    [Tooltip("大于 0 时，覆盖默认前摇时长。")]
+    public float overrideTelegraphDuration = -1f;
+
     [Header("🎯 判定盒引用")]
     public EnemyHitbox redSweepHitbox;
     public EnemyHitbox blueSmashHitbox;
@@ -132,7 +139,11 @@ public class EnemyAttackBrain : MonoBehaviour
         float dist = playerTransform != null ? Vector3.Distance(transform.position, playerTransform.position) : 10f;
         Polarity attackPolarity;
 
-        if (dist > 5f)
+        if (forceAttackPolarity)
+        {
+            attackPolarity = forcedAttackPolarity;
+        }
+        else if (dist > 5f)
         {
             // 远距离：80% 几率红光突刺
             attackPolarity = Random.value < 0.8f ? Polarity.Red : Polarity.Blue;
@@ -145,7 +156,8 @@ public class EnemyAttackBrain : MonoBehaviour
 
         // 【机制二：快慢刀变体】
         bool isSlowAttack = Random.value < 0.3f;
-        float finalTelegraph = isSlowAttack ? telegraphDuration + 0.3f : telegraphDuration;
+        float baseTelegraph = overrideTelegraphDuration > 0f ? overrideTelegraphDuration : telegraphDuration;
+        float finalTelegraph = isSlowAttack ? baseTelegraph + 0.3f : baseTelegraph;
 
         CurrentState = EnemyState.Telegraphing;
         EnemyHitbox selectedHitbox = attackPolarity == Polarity.Red ? redSweepHitbox : blueSmashHitbox;
