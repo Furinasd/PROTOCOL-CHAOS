@@ -33,10 +33,21 @@ public class ArenaTransitionManager : MonoBehaviour
 
     private Vector3 platformInitialLocalPos;
     private bool platformCached;
+    private Transform beamTransform;
+    private MeshRenderer beamRenderer;
+    private Material beamSharedMaterial;
+    private MaterialPropertyBlock beamMpb;
+    private Tween beamAlphaTween;
 
     private void Awake()
     {
         CachePlatformPosition();
+        CacheBeamResources();
+    }
+
+    private void OnDestroy()
+    {
+        beamAlphaTween?.Kill();
     }
 
     public void ApplyPhaseLight(int phaseIndex)
@@ -87,46 +98,91 @@ public class ArenaTransitionManager : MonoBehaviour
 
     private void SpawnLightBeamJuice()
     {
-        // 动态生成一个光柱圆柱体
-        GameObject beamObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        Destroy(beamObj.GetComponent<Collider>()); // 移除碰撞体
+        CacheBeamResources();
+        if (beamTransform == null || beamRenderer == null)
+        {
+            return;
+        }
+
+        beamAlphaTween?.Kill();
 
         // 设置光柱位置（玩家正中心或场地中心）
         PlayerController player = FindFirstObjectByType<PlayerController>();
         Vector3 spawnPos = player != null ? player.transform.position : Vector3.zero;
-        beamObj.transform.position = spawnPos + Vector3.up * 50f; // 从高空开始
-        beamObj.transform.localScale = new Vector3(8f, 50f, 8f); // 初始很细很长
-
-        // 配置材质 (如果没有赋予，创建一个简单的半透明发光材质)
-        MeshRenderer renderer = beamObj.GetComponent<MeshRenderer>();
-        if (lightBeamMaterial != null)
-        {
-            renderer.material = lightBeamMaterial;
-        }
-        else
-        {
-            Material mat = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
-            mat.SetColor("_BaseColor", new Color(0.2f, 0.8f, 1f, 0.6f));
-            // 启用 Transparent
-            mat.SetFloat("_Surface", 1);
-            mat.SetFloat("_Blend", 0);
-            mat.renderQueue = 3000;
-            renderer.material = mat;
-        }
+        beamTransform.position = spawnPos + Vector3.up * 50f; // 从高空开始
+        beamTransform.localScale = new Vector3(8f, 50f, 8f); // 初始很细很长
+        beamRenderer.enabled = true;
+        SetBeamAlpha(0.6f);
 
         // Juice 动画：瞬间砸向地面并且变宽，然后渐渐消散
         Sequence seq = DOTween.Sequence();
-        seq.Append(beamObj.transform.DOMoveY(0f, 0.15f).SetEase(Ease.OutExpo));
-        seq.Join(beamObj.transform.DOScale(new Vector3(30f, 50f, 30f), 0.3f).SetEase(Ease.OutQuint));
+        seq.Append(beamTransform.DOMoveY(0f, 0.15f).SetEase(Ease.OutExpo));
+        seq.Join(beamTransform.DOScale(new Vector3(30f, 50f, 30f), 0.3f).SetEase(Ease.OutQuint));
 
-        // 材质阿尔法消散
-        if (renderer.material.HasProperty("_BaseColor"))
+        beamAlphaTween = DOVirtual.Float(0.6f, 0f, 0.5f, SetBeamAlpha).SetDelay(0.1f);
+        seq.Join(beamAlphaTween);
+        seq.OnComplete(() =>
         {
-            Color startColor = renderer.material.GetColor("_BaseColor");
-            seq.Join(renderer.material.DOColor(new Color(startColor.r, startColor.g, startColor.b, 0f), "_BaseColor", 0.5f).SetDelay(0.1f));
+            if (beamRenderer != null)
+            {
+                beamRenderer.enabled = false;
+            }
+        });
+    }
+
+    private void CacheBeamResources()
+    {
+        if (beamTransform != null && beamRenderer != null)
+        {
+            return;
         }
 
-        seq.OnComplete(() => Destroy(beamObj));
+        GameObject beamObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        beamObj.name = "ArenaLightBeam_Pooled";
+        Destroy(beamObj.GetComponent<Collider>());
+        beamObj.transform.SetParent(transform, true);
+        beamTransform = beamObj.transform;
+        beamRenderer = beamObj.GetComponent<MeshRenderer>();
+        beamRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        beamRenderer.receiveShadows = false;
+
+        if (lightBeamMaterial != null)
+        {
+            beamSharedMaterial = lightBeamMaterial;
+        }
+        else
+        {
+            Shader unlit = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (unlit != null)
+            {
+                beamSharedMaterial = new Material(unlit);
+                beamSharedMaterial.SetColor("_BaseColor", new Color(0.2f, 0.8f, 1f, 0.6f));
+                beamSharedMaterial.SetFloat("_Surface", 1f);
+                beamSharedMaterial.SetFloat("_Blend", 0f);
+                beamSharedMaterial.renderQueue = 3000;
+            }
+        }
+
+        if (beamSharedMaterial != null)
+        {
+            beamRenderer.sharedMaterial = beamSharedMaterial;
+        }
+
+        beamMpb = new MaterialPropertyBlock();
+        beamRenderer.enabled = false;
+    }
+
+    private void SetBeamAlpha(float alpha)
+    {
+        if (beamRenderer == null)
+        {
+            return;
+        }
+
+        Color c = new Color(0.2f, 0.8f, 1f, Mathf.Clamp01(alpha));
+        beamRenderer.GetPropertyBlock(beamMpb);
+        beamMpb.SetColor("_BaseColor", c);
+        beamRenderer.SetPropertyBlock(beamMpb);
     }
 
     private void CachePlatformPosition()

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using TMPro;
 
 public class CombatHUDManager : MonoBehaviour
 {
@@ -39,11 +40,18 @@ public class CombatHUDManager : MonoBehaviour
     public Image bossPostureFill;
     public Image bossPostureEaseFill;
 
+    [Header("处决提示")]
+    public TextMeshProUGUI executePromptText;
+    public float executePromptRange = 3.5f;
+    public Vector2 executePromptPosition = new Vector2(0f, -220f);
+
     private PlayerCombatReceiver playerReceiver;
     private EnemyPosture bossPosture;
     private PlayerCombatReceiver subscribedPlayerReceiver;
     private EnemyPosture subscribedBossPosture;
     private bool autoHudBuilt;
+    private int executePromptScanFrameInterval = 5;
+    private static readonly Collider[] executePromptOverlapBuffer = new Collider[24];
 
     private void Awake()
     {
@@ -93,6 +101,46 @@ public class CombatHUDManager : MonoBehaviour
 
         UpdatePlayerHUD();
         UpdateBossHUD();
+        UpdateExecutePrompt();
+    }
+
+    private void UpdateExecutePrompt()
+    {
+        EnsureExecutePromptBinding();
+
+        if (executePromptText == null || playerReceiver == null)
+        {
+            return;
+        }
+
+        if (Time.frameCount % executePromptScanFrameInterval != 0)
+        {
+            return;
+        }
+
+        bool canExecute = HasBrokenEnemyNearby(playerReceiver.transform.position, executePromptRange);
+        executePromptText.gameObject.SetActive(canExecute);
+    }
+
+    private bool HasBrokenEnemyNearby(Vector3 center, float range)
+    {
+        int hitCount = Physics.OverlapSphereNonAlloc(center, range, executePromptOverlapBuffer);
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider col = executePromptOverlapBuffer[i];
+            if (col == null)
+            {
+                continue;
+            }
+
+            EnemyPosture posture = col.GetComponentInParent<EnemyPosture>();
+            if (posture != null && posture.IsBroken)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void UpdatePlayerHUD()
@@ -118,9 +166,9 @@ public class CombatHUDManager : MonoBehaviour
 
     private void UpdateBossHUD()
     {
-        if (bossPosture == null || bossHPFill == null) 
+        if (bossPosture == null || bossHPFill == null)
         {
-            if (bossHUDParent != null && bossHUDParent.activeSelf) 
+            if (bossHUDParent != null && bossHUDParent.activeSelf)
             {
                 bossHUDParent.SetActive(false);
             }
@@ -281,7 +329,10 @@ public class CombatHUDManager : MonoBehaviour
     private void EnsureHudBindings()
     {
         if (playerHPFill != null && playerHPContainer != null && bossHPFill != null && bossPostureFill != null)
+        {
+            EnsureExecutePromptBinding();
             return;
+        }
 
         if (!autoHudBuilt)
         {
@@ -323,7 +374,60 @@ public class CombatHUDManager : MonoBehaviour
         CreateBarSet(bossContainer, "BossHP", out bossHPFill, out bossHPEaseFill, new Color(0.95f, 0.25f, 0.25f, 1f), new Vector2(0f, 10f), new Vector2(360f, 14f));
         CreateBarSet(bossContainer, "BossPosture", out bossPostureFill, out bossPostureEaseFill, new Color(0.3f, 0.8f, 1f, 1f), new Vector2(0f, -12f), new Vector2(360f, 10f));
 
+        executePromptText = CreateExecutePrompt(root);
+
         bossHUDParent.SetActive(false);
+    }
+
+    private void EnsureExecutePromptBinding()
+    {
+        if (executePromptText != null)
+        {
+            return;
+        }
+
+        TextMeshProUGUI[] allTexts = FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < allTexts.Length; i++)
+        {
+            if (allTexts[i] != null && allTexts[i].name == "ExecutePromptText")
+            {
+                executePromptText = allTexts[i];
+                executePromptText.gameObject.SetActive(false);
+                return;
+            }
+        }
+
+        Canvas targetCanvas = FindFirstObjectByType<Canvas>();
+        if (targetCanvas == null)
+        {
+            return;
+        }
+
+        executePromptText = CreateExecutePrompt(targetCanvas.GetComponent<RectTransform>());
+    }
+
+    private TextMeshProUGUI CreateExecutePrompt(RectTransform root)
+    {
+        GameObject go = new GameObject("ExecutePromptText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.SetParent(root, false);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = executePromptPosition;
+        rt.sizeDelta = new Vector2(520f, 64f);
+
+        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.text = "按 F 进行处决  /  Press F to Execute";
+        tmp.fontSize = 40f;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = new Color(1f, 0.85f, 0.15f, 1f);
+        tmp.outlineWidth = 0.2f;
+        tmp.outlineColor = new Color(0f, 0f, 0f, 0.95f);
+        tmp.raycastTarget = false;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        go.SetActive(false);
+        return tmp;
     }
 
     private void EnforcePlayerHudTopLeft()

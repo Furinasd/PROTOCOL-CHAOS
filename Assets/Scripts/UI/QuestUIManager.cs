@@ -12,6 +12,7 @@ public class QuestUIManager : MonoBehaviour
     [SerializeField] private QuestFlowManager questFlowManager;
     [SerializeField] private PlayerEnergySystem playerEnergySystem;
     [SerializeField] private TMP_Text questText;
+    [SerializeField] private TMP_FontAsset chineseFontAsset;
     [SerializeField] private CanvasGroup canvasGroup;
     [SerializeField] private RectTransform textRoot;
 
@@ -25,22 +26,109 @@ public class QuestUIManager : MonoBehaviour
 
     private Coroutine typingRoutine;
 
+    /// <summary>
+    /// [编辑器工具] 将层级锚点一键修复为“全撑满”，确保所见即所得。
+    /// 右键点击组件标题即可看到此选项。
+    /// </summary>
+    [ContextMenu("Fix Layout Hierarchy")]
+    public void FixLayoutHierarchy()
+    {
+        if (textRoot != null)
+        {
+            textRoot.anchorMin = Vector2.zero; // (0, 0)
+            textRoot.anchorMax = Vector2.one;  // (1, 1)
+            textRoot.pivot = Vector2.up;      // (0, 1)
+            textRoot.offsetMin = Vector2.zero;
+            textRoot.offsetMax = Vector2.zero;
+        }
+
+        if (questText != null)
+        {
+            // 确保文本组件始终左上对齐
+            questText.alignment = TextAlignmentOptions.TopLeft;
+            
+            // 强制文本 RectTransform 填满容器
+            RectTransform tRect = questText.rectTransform;
+            tRect.anchorMin = Vector2.zero;
+            tRect.anchorMax = Vector2.one;
+            tRect.pivot = Vector2.up;
+            tRect.offsetMin = Vector2.zero;
+            tRect.offsetMax = Vector2.zero;
+        }
+        
+        Debug.Log("[QuestUI] 层级锚点已修复。现在你可以自由调整 QuestUIManager 的框体大小，文字将自动填充并左对齐。", this);
+    }
+
     private void Awake()
     {
         if (questFlowManager == null)
-        {
             questFlowManager = FindFirstObjectByType<QuestFlowManager>();
-        }
 
         if (playerEnergySystem == null)
-        {
             playerEnergySystem = FindFirstObjectByType<PlayerEnergySystem>();
-        }
 
         if (canvasGroup == null)
-        {
             canvasGroup = GetComponentInChildren<CanvasGroup>();
+
+        // 仅处理字体和核心对齐，不再触碰位置和宽度
+        EnsureQuestFontReady();
+    }
+
+    private void EnsureQuestFontReady()
+    {
+        if (questText == null)
+        {
+            return;
         }
+
+        TMP_FontAsset resolved = ResolveChineseFontAsset();
+        if (resolved == null)
+        {
+            Debug.LogWarning("[QuestUI] 未找到可用中文 TMP 字体，请在 QuestUIManager.chineseFontAsset 手动指定字体。", this);
+            return;
+        }
+
+        if (questText.font != resolved)
+        {
+            questText.font = resolved;
+        }
+
+        questText.alignment = TextAlignmentOptions.TopLeft; // 强制左上对齐
+        questText.isRightToLeftText = false;
+        questText.textWrappingMode = TextWrappingModes.Normal;
+        questText.overflowMode = TextOverflowModes.Overflow;
+    }
+
+    private TMP_FontAsset ResolveChineseFontAsset()
+    {
+        if (chineseFontAsset != null)
+        {
+            return chineseFontAsset;
+        }
+
+        TMP_FontAsset[] loadedFonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+        for (int i = 0; i < loadedFonts.Length; i++)
+        {
+            TMP_FontAsset font = loadedFonts[i];
+            if (font == null)
+            {
+                continue;
+            }
+
+            string lowerName = font.name.ToLowerInvariant();
+            if (lowerName.Contains("misans") || lowerName.Contains("sourcehan") || lowerName.Contains("noto"))
+            {
+                chineseFontAsset = font;
+                return chineseFontAsset;
+            }
+        }
+
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            return TMP_Settings.defaultFontAsset;
+        }
+
+        return null;
     }
 
     private void OnEnable()
@@ -115,34 +203,34 @@ public class QuestUIManager : MonoBehaviour
         return phase switch
         {
             // 【Phase 1】：协议初始化 - 教导玩家极性切换和吸收机制
-            QuestFlowManager.QuestPhase.Phase1 => 
+            QuestFlowManager.QuestPhase.Phase1 =>
                 $"【协议初始化】\n" +
-                $"检测到环境混沌。请通过【鼠标右键】切换极性，\n" +
-                $"以吸收同频能量。\n" +
+                $"检测到环境混沌。请通过【鼠标右键】切换极性" +
+                $"以吸收同频能量。" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 2】：熵减测试 - 教导玩家完美弹刀
-            QuestFlowManager.QuestPhase.Phase2 => 
+            QuestFlowManager.QuestPhase.Phase2 =>
                 $"【熵减测试】\n" +
                 $"遭遇高维畸变体。请在攻击瞬间【鼠标左键】触发，\n" +
                 $"通过【异色湮灭】击碎敌方外壳。\n" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 3】：能量循环 - 教导玩家积累和反击
-            QuestFlowManager.QuestPhase.Phase3 => 
+            QuestFlowManager.QuestPhase.Phase3 =>
                 $"【能量循环】\n" +
                 $"实战测试开启。使用【极限闪避】或【滑行】获取能量，\n" +
                 $"累积 3 格能量后通过【异色湮灭】反击。\n" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 4】：绝对失序 - Boss 战
-            QuestFlowManager.QuestPhase.Phase4 => 
+            QuestFlowManager.QuestPhase.Phase4 =>
                 "【绝对失序】\n" +
                 "不稳定变量已过载。\n" +
                 "歼灭【终极混沌核心】！",
 
             // 完成状态
-            QuestFlowManager.QuestPhase.Completed => 
+            QuestFlowManager.QuestPhase.Completed =>
                 "【秩序已重建】\n" +
                 "训练闭环完成。\n" +
                 "你已掌握秩序之力。",
