@@ -15,6 +15,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 {
     public event Action OnSamePolarityAbsorbed;
     public event Action OnPerfectParrySucceeded;
+    public event Action OnEnemyExecuted;
     public event Action<float, float> OnHealthChanged;
 
     private PlayerController controller;
@@ -326,11 +327,15 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 TutorialBoss tutorialBoss = target.GetComponent<TutorialBoss>();
                 if (tutorialBoss != null)
                 {
-                    tutorialBoss.TryExecuteFromPlayer();
+                    if (tutorialBoss.TryExecuteFromPlayer())
+                    {
+                        OnEnemyExecuted?.Invoke();
+                    }
                 }
                 else
                 {
                     target.Execute();
+                    OnEnemyExecuted?.Invoke();
                 }
                 break;
             }
@@ -343,29 +348,27 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     /// </summary>
     public bool CheckPerfectDodgeNearMiss()
     {
-        if (controller.IsDodging || controller.IsJumping)
+        float timeSinceDash = Time.time - controller.LastDashTime;
+        float timeSinceJump = Time.time - controller.LastJumpTime;
+
+        // Near Miss 必须与受击判定一致：以动作时间窗为准，而不是依赖瞬时状态位。
+        // 否则 Dash 收尾或短跳落地时，状态已回落但仍在 0.3s 有效窗内，会导致漏判。
+        if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
         {
-            float timeSinceDash = Time.time - controller.LastDashTime;
-            float timeSinceJump = Time.time - controller.LastJumpTime;
-
             Debug.Log($"[Combat] NearMiss detected. IsDodging:{controller.IsDodging}, IsJumping:{controller.IsJumping}, timeSinceDash:{timeSinceDash:F2}, timeSinceJump:{timeSinceJump:F2}");
-
-            if (timeSinceDash <= 0.3f || timeSinceJump <= 0.3f)
+            Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！获取 2 格秩序能量奖励。</color>");
+            if (allowDodgeEnergyReward)
             {
-                Debug.Log($"<color=white>💨 空间极限规避 (Near Miss)！获取 2 格秩序能量奖励。</color>");
-                if (allowDodgeEnergyReward)
-                {
-                    energySystem.AddEnergy(2);
-                }
-
-                if (PlayerCombatVFX.Instance != null)
-                    PlayerCombatVFX.Instance.TriggerDodgeVFX();
-
-                if (CombatFeedbackManager.Instance != null)
-                    CombatFeedbackManager.Instance.TriggerDamageFeedback();
-
-                return true;
+                energySystem.AddEnergy(2);
             }
+
+            if (PlayerCombatVFX.Instance != null)
+                PlayerCombatVFX.Instance.TriggerDodgeVFX();
+
+            if (CombatFeedbackManager.Instance != null)
+                CombatFeedbackManager.Instance.TriggerDamageFeedback();
+
+            return true;
         }
         return false;
     }

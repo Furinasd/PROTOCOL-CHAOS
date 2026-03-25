@@ -12,6 +12,12 @@ public class EnemyPosture : MonoBehaviour
     public float maxHP = 200f;
     public float currentHP = 200f;
 
+    [Header("Execution Damage")]
+    [Tooltip("处决伤害百分比，按 maxHP 计算。示例：0.5 = 50% 最大生命。")]
+    [SerializeField] private float executeDamagePercent = 0.5f;
+    [Tooltip("处决附加固定伤害，可用于微调击杀阈值。")]
+    [SerializeField] private float executeFlatDamage = 0f;
+
     [Header("Type")]
     public bool isBoss = false;
 
@@ -81,7 +87,7 @@ public class EnemyPosture : MonoBehaviour
         OnExecuted?.Invoke();
 
         // 1. 瞬间伤害
-        float damage = maxHP * 0.5f;
+        float damage = Mathf.Max(maxHP * executeDamagePercent + executeFlatDamage, 1f);
         TakeDamage(damage);
 
         if (currentHP > 0)

@@ -432,7 +432,7 @@ public class CombatHUDManager : MonoBehaviour
         rt.sizeDelta = new Vector2(520f, 64f);
 
         TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
-        tmp.text = "按 F 进行处决  /  Press F to Execute";
+        tmp.text = "Press F to Execute";
         tmp.fontSize = 40f;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = new Color(1f, 0.85f, 0.15f, 1f);

@@ -260,6 +260,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: currentPosture
+      value: 100
+      objectReference: {fileID: 0}
     - target: {fileID: 5926493990769130887, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: m_Material
       value: 
@@ -320,6 +324,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1333091351}
     m_Modifications:
+    - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_fontSize
+      value: 28
+      objectReference: {fileID: 0}
+    - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_fontStyle
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_fontSizeBase
+      value: 28
+      objectReference: {fileID: 0}
     - target: {fileID: 1236327868000349023, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_Name
       value: QuestUIManager
@@ -394,11 +410,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -2
+      value: -6
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -310
+      value: -581
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -546,13 +562,13 @@ MonoBehaviour:
   lightBeamMaterial: {fileID: 0}
   keyLight: {fileID: 410087040}
   lightBlendDuration: 0.45
-  phase1LightColor: {r: 0.45, g: 0.7, b: 1, a: 1}
-  phase2LightColor: {r: 0.55, g: 0.85, b: 1, a: 1}
-  phase3LightColor: {r: 0.95, g: 0.95, b: 1, a: 1}
+  phase1LightColor: {r: 0.3075471, g: 0.6191511, b: 1, a: 1}
+  phase2LightColor: {r: 1, g: 0.5490196, b: 0, a: 1}
+  phase3LightColor: {r: 1, g: 0.34528297, b: 0.8235792, a: 1}
   phase4LightColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   useCameraShake: 1
-  shakeDuration: 0.2
-  shakeStrength: 0.1
+  shakeDuration: 0.34
+  shakeStrength: 0.26
 --- !u!4 &388122183
 Transform:
   m_ObjectHideFlags: 0
@@ -1321,7 +1337,8 @@ MonoBehaviour:
   phase1AbsorbTarget: 3
   phase2PerfectParryTarget: 2
   phase3EnergyFullTarget: 1
-  phaseTransitionDelay: 0.4
+  phase3ExecuteTarget: 2
+  phaseTransitionDelay: 3
   phase1SpawnRoot: {fileID: 1848742635953233990}
   phase2SpawnRoot: {fileID: 29513380}
   phase3SpawnRoot: {fileID: 1676356139}
@@ -1884,70 +1901,70 @@ LineRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_Positions:
-  - {x: 57.37, y: 0.25, z: 1.13}
-  - {x: 57.078674, y: 0.25, z: 7.060037}
-  - {x: 56.207508, y: 0.25, z: 12.932964}
-  - {x: 54.76489, y: 0.25, z: 18.69222}
-  - {x: 52.76471, y: 0.25, z: 24.282349}
-  - {x: 50.226234, y: 0.25, z: 29.649502}
-  - {x: 47.17391, y: 0.25, z: 34.742}
-  - {x: 43.63713, y: 0.25, z: 39.5108}
-  - {x: 39.64996, y: 0.25, z: 43.90996}
-  - {x: 35.250793, y: 0.25, z: 47.897133}
-  - {x: 30.481995, y: 0.25, z: 51.433914}
-  - {x: 25.389496, y: 0.25, z: 54.48624}
-  - {x: 20.022346, y: 0.25, z: 57.02471}
-  - {x: 14.4322195, y: 0.25, z: 59.02489}
-  - {x: 8.672959, y: 0.25, z: 60.467514}
-  - {x: 2.8000364, y: 0.25, z: 61.338676}
-  - {x: -3.1300027, y: 0.25, z: 61.63}
-  - {x: -9.060041, y: 0.25, z: 61.338676}
-  - {x: -14.932964, y: 0.25, z: 60.46751}
-  - {x: -20.692226, y: 0.25, z: 59.024887}
-  - {x: -26.282352, y: 0.25, z: 57.02471}
-  - {x: -31.64951, y: 0.25, z: 54.486237}
-  - {x: -36.74201, y: 0.25, z: 51.433907}
-  - {x: -41.510796, y: 0.25, z: 47.897137}
-  - {x: -45.90996, y: 0.25, z: 43.90996}
-  - {x: -49.897137, y: 0.25, z: 39.510796}
-  - {x: -53.433914, y: 0.25, z: 34.741997}
-  - {x: -56.486244, y: 0.25, z: 29.649494}
-  - {x: -59.02472, y: 0.25, z: 24.282337}
-  - {x: -61.02489, y: 0.25, z: 18.692225}
-  - {x: -62.467514, y: 0.25, z: 12.932963}
-  - {x: -63.338676, y: 0.25, z: 7.0600343}
-  - {x: -63.63, y: 0.25, z: 1.1299948}
-  - {x: -63.338676, y: 0.25, z: -4.8000445}
-  - {x: -62.46751, y: 0.25, z: -10.672975}
-  - {x: -61.024887, y: 0.25, z: -16.432236}
-  - {x: -59.02471, y: 0.25, z: -22.022348}
-  - {x: -56.486237, y: 0.25, z: -27.389505}
-  - {x: -53.433907, y: 0.25, z: -32.482002}
-  - {x: -49.89713, y: 0.25, z: -37.2508}
-  - {x: -45.909954, y: 0.25, z: -41.649967}
-  - {x: -41.5108, y: 0.25, z: -45.63713}
-  - {x: -36.741985, y: 0.25, z: -49.17392}
-  - {x: -31.649498, y: 0.25, z: -52.22624}
-  - {x: -26.28233, y: 0.25, z: -54.76472}
-  - {x: -20.692215, y: 0.25, z: -56.76489}
-  - {x: -14.932968, y: 0.25, z: -58.207508}
-  - {x: -9.060024, y: 0.25, z: -59.078674}
-  - {x: -3.1299994, y: 0.25, z: -59.37}
-  - {x: 2.8000546, y: 0.25, z: -59.078674}
-  - {x: 8.67297, y: 0.25, z: -58.207508}
-  - {x: 14.432244, y: 0.25, z: -56.764885}
-  - {x: 20.022358, y: 0.25, z: -54.764706}
-  - {x: 25.3895, y: 0.25, z: -52.22624}
-  - {x: 30.48201, y: 0.25, z: -49.1739}
-  - {x: 35.250797, y: 0.25, z: -45.63713}
-  - {x: 39.64997, y: 0.25, z: -41.649944}
-  - {x: 43.63714, y: 0.25, z: -37.250786}
-  - {x: 47.17391, y: 0.25, z: -32.482002}
-  - {x: 50.226242, y: 0.25, z: -27.389492}
-  - {x: 52.764713, y: 0.25, z: -22.022348}
-  - {x: 54.764893, y: 0.25, z: -16.432207}
-  - {x: 56.20751, y: 0.25, z: -10.672959}
-  - {x: 57.07868, y: 0.25, z: -4.8000145}
+  - {x: 65.170006, y: 0.25, z: 1.13}
+  - {x: 64.841125, y: 0.25, z: 7.824571}
+  - {x: 63.85763, y: 0.25, z: 14.45467}
+  - {x: 62.22903, y: 0.25, z: 20.956442}
+  - {x: 59.97097, y: 0.25, z: 27.26728}
+  - {x: 57.10522, y: 0.25, z: 33.3264}
+  - {x: 53.659374, y: 0.25, z: 39.07545}
+  - {x: 49.666615, y: 0.25, z: 44.45907}
+  - {x: 45.165394, y: 0.25, z: 49.425396}
+  - {x: 40.199062, y: 0.25, z: 53.926617}
+  - {x: 34.815445, y: 0.25, z: 57.91938}
+  - {x: 29.066391, y: 0.25, z: 61.365227}
+  - {x: 23.007278, y: 0.25, z: 64.23097}
+  - {x: 16.696442, y: 0.25, z: 66.48903}
+  - {x: 10.194663, y: 0.25, z: 68.11764}
+  - {x: 3.5645704, y: 0.25, z: 69.10112}
+  - {x: -3.1300032, y: 0.25, z: 69.43}
+  - {x: -9.824577, y: 0.25, z: 69.10112}
+  - {x: -16.45467, y: 0.25, z: 68.11763}
+  - {x: -22.956448, y: 0.25, z: 66.48902}
+  - {x: -29.267284, y: 0.25, z: 64.23097}
+  - {x: -35.326405, y: 0.25, z: 61.365223}
+  - {x: -41.07546, y: 0.25, z: 57.919373}
+  - {x: -46.459064, y: 0.25, z: 53.92662}
+  - {x: -51.425396, y: 0.25, z: 49.425396}
+  - {x: -55.92662, y: 0.25, z: 44.459064}
+  - {x: -59.91938, y: 0.25, z: 39.075447}
+  - {x: -63.36523, y: 0.25, z: 33.326393}
+  - {x: -66.23098, y: 0.25, z: 27.267267}
+  - {x: -68.48903, y: 0.25, z: 20.956446}
+  - {x: -70.11764, y: 0.25, z: 14.454669}
+  - {x: -71.10112, y: 0.25, z: 7.8245683}
+  - {x: -71.43, y: 0.25, z: 1.129994}
+  - {x: -71.10112, y: 0.25, z: -5.5645795}
+  - {x: -70.11763, y: 0.25, z: -12.194681}
+  - {x: -68.48902, y: 0.25, z: -18.696459}
+  - {x: -66.23097, y: 0.25, z: -25.00728}
+  - {x: -63.365223, y: 0.25, z: -31.0664}
+  - {x: -59.919373, y: 0.25, z: -36.815453}
+  - {x: -55.926613, y: 0.25, z: -42.19907}
+  - {x: -51.42539, y: 0.25, z: -47.1654}
+  - {x: -46.45907, y: 0.25, z: -51.666615}
+  - {x: -41.075436, y: 0.25, z: -55.659386}
+  - {x: -35.326397, y: 0.25, z: -59.105225}
+  - {x: -29.267258, y: 0.25, z: -61.970985}
+  - {x: -22.956436, y: 0.25, z: -64.229034}
+  - {x: -16.454674, y: 0.25, z: -65.857635}
+  - {x: -9.824556, y: 0.25, z: -66.841125}
+  - {x: -3.1299994, y: 0.25, z: -67.170006}
+  - {x: 3.564591, y: 0.25, z: -66.841125}
+  - {x: 10.194675, y: 0.25, z: -65.857635}
+  - {x: 16.696468, y: 0.25, z: -64.22903}
+  - {x: 23.00729, y: 0.25, z: -61.970966}
+  - {x: 29.066395, y: 0.25, z: -59.105225}
+  - {x: 34.81546, y: 0.25, z: -55.659367}
+  - {x: 40.199066, y: 0.25, z: -51.666615}
+  - {x: 45.16541, y: 0.25, z: -47.16538}
+  - {x: 49.666622, y: 0.25, z: -42.199055}
+  - {x: 53.659374, y: 0.25, z: -36.815453}
+  - {x: 57.10523, y: 0.25, z: -31.066385}
+  - {x: 59.970978, y: 0.25, z: -25.00728}
+  - {x: 62.22903, y: 0.25, z: -18.696426}
+  - {x: 63.85764, y: 0.25, z: -12.194663}
+  - {x: 64.841125, y: 0.25, z: -5.5645456}
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 1
@@ -2526,6 +2543,22 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: maxPosture
+      value: 150
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: currentPosture
+      value: 150
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: executeFlatDamage
+      value: 100
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: executeDamagePercent
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5926493990769130887, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: m_Material
       value: 
@@ -2548,7 +2581,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: overrideTelegraphDuration
-      value: 0.5
+      value: 0.4
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2996,11 +3029,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: isBoss
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: currentHP
       value: 300
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: maxPosture
+      value: 200
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: currentPosture
+      value: 200
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: executeFlatDamage
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: executeDamagePercent
+      value: 0.33
       objectReference: {fileID: 0}
     - target: {fileID: 5926493990769130887, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: m_Material
@@ -3040,7 +3089,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: overrideTelegraphDuration
-      value: 0
+      value: -0.12
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3227,11 +3276,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: moveSpeed
-      value: 15.7
+      value: 17
       objectReference: {fileID: 0}
     - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: arenaRadius
-      value: 60.5
+      value: 68.3
       objectReference: {fileID: 0}
     - target: {fileID: 1963942175144383745, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3363,6 +3412,18 @@ PrefabInstance:
     - target: {fileID: 2948230367803384886, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: maxPosture
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: currentPosture
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5722446264529146144, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: executeDamagePercent
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5926493990769130887, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: m_Material
@@ -3521,15 +3582,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7410977399861104105, guid: c54cb5db759188d4386e4594f39fc882, type: 3}
       propertyPath: damagePerSecond
-      value: 5.7
+      value: 8.28
       objectReference: {fileID: 0}
     - target: {fileID: 7410977399861104105, guid: c54cb5db759188d4386e4594f39fc882, type: 3}
       propertyPath: purpleHazardMat
       value: 
       objectReference: {fileID: 2100000, guid: c075582fe32aa194f8e9a2163c78bd6b, type: 2}
     - target: {fileID: 7410977399861104105, guid: c54cb5db759188d4386e4594f39fc882, type: 3}
+      propertyPath: speedMultiplier
+      value: 0.62
+      objectReference: {fileID: 0}
+    - target: {fileID: 7410977399861104105, guid: c54cb5db759188d4386e4594f39fc882, type: 3}
       propertyPath: energyDrainPerSecond
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 3718135130499074386, guid: c54cb5db759188d4386e4594f39fc882, type: 3}

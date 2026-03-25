@@ -21,6 +21,11 @@ public class EnemyHitbox : MonoBehaviour
     // 防止在同一次攻击动作中，对同一个目标造成多次伤害
     private HashSet<IDamageable> alreadyHitComponents = new HashSet<IDamageable>();
 
+    // Zero-GC: 预分配 OverlapBox 结果缓存，避免每帧堆分配触发 GC。
+    // Phase4 下同层碰撞体可能显著增多，容量过小会导致 NonAlloc 截断并漏判。
+    private readonly Collider[] hitBuffer = new Collider[64];
+    private readonly Collider[] nearMissBuffer = new Collider[64];
+
     /// <summary>
     /// 激活判定盒（由 EnemyAttackBrain 在进入 Attacking 状态时调用）
     /// </summary>
@@ -58,10 +63,15 @@ public class EnemyHitbox : MonoBehaviour
         Vector3 scaledHalfSize = Vector3.Scale(hitboxSize, transform.lossyScale) / 2f;
 
         // 1. 核心区伤害判定 (正常受击与弹刀)
-        Collider[] hits = Physics.OverlapBox(worldCenter, scaledHalfSize, transform.rotation, targetLayer);
-
-        foreach (Collider hit in hits)
+        int hitCount = Physics.OverlapBoxNonAlloc(worldCenter, scaledHalfSize, hitBuffer, transform.rotation, targetLayer);
+        if (hitCount >= hitBuffer.Length)
         {
+            Debug.LogWarning($"[EnemyHitbox] 命中盒结果达到缓存上限({hitBuffer.Length})，可能存在漏判，请收紧 targetLayer 或继续扩容缓存。", this);
+        }
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hit = hitBuffer[i];
             // 尝试获取玩家的受击接口
             IDamageable damageable = hit.GetComponentInParent<IDamageable>();
             if (damageable == null) 
@@ -109,9 +119,14 @@ public class EnemyHitbox : MonoBehaviour
         // 2. 边缘区/近失 (Graze) 判定：只用于捕捉那些用物理位移躲开核心区的玩家
         // 扩大 1.5 倍判定框，专门奖励成功蹭破攻击边缘的玩家
         Vector3 nearMissHalfSize = scaledHalfSize * 1.5f; 
-        Collider[] nearMisses = Physics.OverlapBox(worldCenter, nearMissHalfSize, transform.rotation, targetLayer); 
-        foreach (Collider hit in nearMisses)
+        int nearMissCount = Physics.OverlapBoxNonAlloc(worldCenter, nearMissHalfSize, nearMissBuffer, transform.rotation, targetLayer);
+        if (nearMissCount >= nearMissBuffer.Length)
         {
+            Debug.LogWarning($"[EnemyHitbox] NearMiss 结果达到缓存上限({nearMissBuffer.Length})，可能存在漏判，请收紧 targetLayer 或继续扩容缓存。", this);
+        }
+        for (int i = 0; i < nearMissCount; i++)
+        {
+            Collider hit = nearMissBuffer[i];
             PlayerCombatReceiver receiver = hit.GetComponentInParent<PlayerCombatReceiver>();
             if (receiver != null && !alreadyHitComponents.Contains(receiver))
             {

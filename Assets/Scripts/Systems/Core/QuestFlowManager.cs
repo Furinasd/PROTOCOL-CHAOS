@@ -30,6 +30,7 @@ public class QuestFlowManager : MonoBehaviour
     [SerializeField] private int phase1AbsorbTarget = 3;
     [SerializeField] private int phase2PerfectParryTarget = 2;
     [SerializeField] private int phase3EnergyFullTarget = 2;
+    [SerializeField] private int phase3ExecuteTarget = 1;
     [SerializeField] private float phaseTransitionDelay = 0.4f;
 
     [Header("Spawn")]
@@ -55,6 +56,7 @@ public class QuestFlowManager : MonoBehaviour
     private int absorbCounter;
     private int perfectParryCounter;
     private int energyFullCounter;
+    private int executeCounter;
     private bool flowRunning;
     private QuestPhase loadedStartPhase = QuestPhase.Phase1;
     private bool loadedFromSave;
@@ -66,6 +68,7 @@ public class QuestFlowManager : MonoBehaviour
     private const string SaveAbsorbKey = SavePrefix + "Absorb";
     private const string SaveParryKey = SavePrefix + "Parry";
     private const string SaveEnergyKey = SavePrefix + "Energy";
+    private const string SaveExecuteKey = SavePrefix + "Execute";
 
     private void Awake()
     {
@@ -91,6 +94,7 @@ public class QuestFlowManager : MonoBehaviour
         {
             playerCombatReceiver.OnSamePolarityAbsorbed += HandleSamePolarityAbsorbed;
             playerCombatReceiver.OnPerfectParrySucceeded += HandlePerfectParrySucceeded;
+            playerCombatReceiver.OnEnemyExecuted += HandleEnemyExecuted;
         }
 
         if (playerEnergySystem != null)
@@ -115,6 +119,7 @@ public class QuestFlowManager : MonoBehaviour
         {
             playerCombatReceiver.OnSamePolarityAbsorbed -= HandleSamePolarityAbsorbed;
             playerCombatReceiver.OnPerfectParrySucceeded -= HandlePerfectParrySucceeded;
+            playerCombatReceiver.OnEnemyExecuted -= HandleEnemyExecuted;
         }
 
         if (playerEnergySystem != null)
@@ -176,7 +181,7 @@ public class QuestFlowManager : MonoBehaviour
         {
             EnterPhase(QuestPhase.Phase3);
             SetupPhase3(!(loadedFromSave && loadedStartPhase == QuestPhase.Phase3));
-            yield return new WaitUntil(() => energyFullCounter >= phase3EnergyFullTarget);
+            yield return new WaitUntil(() => energyFullCounter >= phase3EnergyFullTarget && executeCounter >= phase3ExecuteTarget);
 
             yield return TransitionToNextPhase();
         }
@@ -203,11 +208,13 @@ public class QuestFlowManager : MonoBehaviour
 
         perfectParryCounter = 0;
         energyFullCounter = 0;
+        executeCounter = 0;
         absorbCounter = Mathf.Clamp(absorbCounter, 0, phase1AbsorbTarget);
 
         if (playerCombatReceiver != null)
         {
-            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: true, canGainDodgeEnergy: false);
+            // Phase2 只训练弹刀：关闭其它充能路径，避免目标干扰。
+            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: false, canGainDodgeEnergy: false);
         }
 
         SpawnForCurrentPhase(phase1EnemyPrefabs, phase1SpawnRoot);
@@ -235,7 +242,7 @@ public class QuestFlowManager : MonoBehaviour
         ApplyPhaseLight(2);
         EmitCurrentPhaseProgress();
         SaveProgress();
-        Log("Phase2 开始：保留真实耗能弹刀，敌人前摇前自动充满能量。");
+        Log("Phase2 开始：仅判定弹刀成功次数（目标 2 次），前摇前自动充能用于弹刀训练。");
     }
 
     private void SetupPhase3(bool resetCounter)
@@ -243,9 +250,11 @@ public class QuestFlowManager : MonoBehaviour
         if (resetCounter)
         {
             energyFullCounter = 0;
+            executeCounter = 0;
         }
 
         energyFullCounter = Mathf.Clamp(energyFullCounter, 0, phase3EnergyFullTarget);
+        executeCounter = Mathf.Clamp(executeCounter, 0, phase3ExecuteTarget);
 
         if (playerCombatReceiver != null)
         {
@@ -256,7 +265,7 @@ public class QuestFlowManager : MonoBehaviour
         ApplyPhaseLight(3);
         EmitCurrentPhaseProgress();
         SaveProgress();
-        Log("Phase3 开始：开启完整积攒机制（目标：能量回满 2 次）。");
+        Log("Phase3 开始：开启完整积攒机制（目标：能量回满后，通过 F 处决敌人进入决战）。");
     }
 
     private void SetupPhase4()
@@ -347,6 +356,18 @@ public class QuestFlowManager : MonoBehaviour
         Log($"Phase3 满能计数: {energyFullCounter}/{phase3EnergyFullTarget}");
     }
 
+    private void HandleEnemyExecuted()
+    {
+        if (CurrentPhase != QuestPhase.Phase3)
+        {
+            return;
+        }
+
+        executeCounter = Mathf.Min(executeCounter + 1, phase3ExecuteTarget);
+        SaveProgress();
+        Log($"Phase3 处决计数: {executeCounter}/{phase3ExecuteTarget}");
+    }
+
     public void ClearProgressSave()
     {
         PlayerPrefs.DeleteKey(SaveValidKey);
@@ -354,6 +375,7 @@ public class QuestFlowManager : MonoBehaviour
         PlayerPrefs.DeleteKey(SaveAbsorbKey);
         PlayerPrefs.DeleteKey(SaveParryKey);
         PlayerPrefs.DeleteKey(SaveEnergyKey);
+        PlayerPrefs.DeleteKey(SaveExecuteKey);
         PlayerPrefs.Save();
     }
 
@@ -369,6 +391,7 @@ public class QuestFlowManager : MonoBehaviour
         PlayerPrefs.SetInt(SaveAbsorbKey, absorbCounter);
         PlayerPrefs.SetInt(SaveParryKey, perfectParryCounter);
         PlayerPrefs.SetInt(SaveEnergyKey, energyFullCounter);
+        PlayerPrefs.SetInt(SaveExecuteKey, executeCounter);
         PlayerPrefs.Save();
     }
 
@@ -395,8 +418,9 @@ public class QuestFlowManager : MonoBehaviour
         absorbCounter = Mathf.Clamp(PlayerPrefs.GetInt(SaveAbsorbKey, 0), 0, phase1AbsorbTarget);
         perfectParryCounter = Mathf.Clamp(PlayerPrefs.GetInt(SaveParryKey, 0), 0, phase2PerfectParryTarget);
         energyFullCounter = Mathf.Clamp(PlayerPrefs.GetInt(SaveEnergyKey, 0), 0, phase3EnergyFullTarget);
+        executeCounter = Mathf.Clamp(PlayerPrefs.GetInt(SaveExecuteKey, 0), 0, phase3ExecuteTarget);
 
-        Log($"读取自动存档：Phase={loadedStartPhase} / P1={absorbCounter} / P2={perfectParryCounter} / P3={energyFullCounter}");
+        Log($"读取自动存档：Phase={loadedStartPhase} / P1={absorbCounter} / P2={perfectParryCounter} / P3能量={energyFullCounter} / P3处决={executeCounter}");
     }
 
     private void EmitCurrentPhaseProgress()

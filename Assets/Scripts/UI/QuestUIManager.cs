@@ -46,7 +46,7 @@ public class QuestUIManager : MonoBehaviour
         {
             // 确保文本组件始终左上对齐
             questText.alignment = TextAlignmentOptions.TopLeft;
-            
+
             // 强制文本 RectTransform 填满容器
             RectTransform tRect = questText.rectTransform;
             tRect.anchorMin = Vector2.zero;
@@ -55,7 +55,7 @@ public class QuestUIManager : MonoBehaviour
             tRect.offsetMin = Vector2.zero;
             tRect.offsetMax = Vector2.zero;
         }
-        
+
         Debug.Log("[QuestUI] 层级锚点已修复。现在你可以自由调整 QuestUIManager 的框体大小，文字将自动填充并左对齐。", this);
     }
 
@@ -205,22 +205,21 @@ public class QuestUIManager : MonoBehaviour
             // 【Phase 1】：协议初始化 - 教导玩家极性切换和吸收机制
             QuestFlowManager.QuestPhase.Phase1 =>
                 $"【协议初始化】\n" +
-                $"检测到环境混沌。请通过【鼠标右键】切换极性" +
-                $"以吸收同频能量。" +
+                $"检测到环境混沌。通过【鼠标右键】切换极性至[同色]以吸收秩序能量。" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 2】：熵减测试 - 教导玩家完美弹刀
             QuestFlowManager.QuestPhase.Phase2 =>
                 $"【熵减测试】\n" +
-                $"遭遇高维畸变体。请在攻击瞬间【鼠标左键】触发，\n" +
-                $"通过【异色湮灭】击碎敌方外壳。\n" +
+                $"遭遇高维畸变体。在攻击瞬间切换[异色]使用【鼠标左键】触发[极性湮灭]\n" +
+                $"通过[极性湮灭]造成伤害!\n" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 3】：能量循环 - 教导玩家积累和反击
             QuestFlowManager.QuestPhase.Phase3 =>
                 $"【能量循环】\n" +
-                $"实战测试开启。使用【极限闪避】或【滑行】获取能量，\n" +
-                $"累积 3 格能量后通过【异色湮灭】反击。\n" +
+                $"实战测试开启。使用[Shift]或[Space]触发【极限闪避】获取能量，\n" +
+                $"累积 3 格能量后通过[极性湮灭]反击，压低敌方躯干后按[F]处决再进入决战!\n" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 4】：绝对失序 - Boss 战
@@ -233,7 +232,7 @@ public class QuestUIManager : MonoBehaviour
             QuestFlowManager.QuestPhase.Completed =>
                 "【秩序已重建】\n" +
                 "训练闭环完成。\n" +
-                "你已掌握秩序之力。",
+                "你已掌握秩序之力,力量与你同在!",
 
             _ => string.Empty
         };
