@@ -32,6 +32,7 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
     public float blockWindow = 0.22f; // 对冲判定窗口
     public float movingParryBonusWindow = 0.1f; // 移动时额外判定
     public float movingThreshold = 0.02f; // 低于该位移视作静止
+    public float parrySelfKnockbackForce = 5f; // 成功弹刀后玩家自身后退力度
 
     [Header("📘 教程规则开关")]
     [SerializeField] private bool allowAbsorbEnergyReward = true;
@@ -132,6 +133,9 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
 
                 if (CombatFeedbackManager.Instance != null)
                     CombatFeedbackManager.Instance.TriggerParryFeedback();
+
+                // 成功弹刀也给玩家一个轻度后坐力，强化手感并避免原地“粘住”。
+                ApplyKnockback(attack.sourcePosition, parrySelfKnockbackForce);
 
                 // 造成反伤（对怪物 Posture）
                 if (attack.sourceObject != null)
@@ -288,15 +292,15 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         OnHealthChanged?.Invoke(currentHP, maxHP);
     }
 
-    private void ApplyKnockback(Vector3 attackerPos)
+    private void ApplyKnockback(Vector3 attackerPos, float force = 15f)
     {
         Vector3 knockbackDir = transform.position - attackerPos;
         knockbackDir.y = 0; // 先移除垂直分量
         knockbackDir.Normalize(); // 再归一化，保证水平力度充足
 
         // 调用真实的物理击退接口，稍微增加力度以强化“代价”感知
-        controller.AddKnockback(knockbackDir, 15f);
-        Debug.Log($"[PlayerCombatReceiver] 物理击退启动方: {knockbackDir}");
+        controller.AddKnockback(knockbackDir, force);
+        Debug.Log($"[PlayerCombatReceiver] 物理击退启动方: {knockbackDir}, force={force:F2}");
     }
 
     private void TryExecuteEnemy()

@@ -48,6 +48,8 @@ public class PlayerController : MonoBehaviour
     public float dashSpeed = 20f;
     public float dashDuration = 0.2f; // 你在原版也是类似于0.2~0.5s的判定时间
     public float dashCooldown = 0.5f;
+    [Tooltip("冲刺时仅在贴地状态施加的轻微向下力，防止离地抖动；过大可能造成镜头下坠感。")]
+    public float dashGroundStickForce = 0.05f;
     private float lastDashTime = -10f;
     public float LastDashTime => lastDashTime; // 暴露给战斗核心用于完美闪避判定
 
@@ -493,9 +495,15 @@ public class PlayerController : MonoBehaviour
             // speed 从 dashSpeed*1.5 快速衰减到 dashSpeed*0.2
             float currentSpeed = Mathf.Lerp(dashSpeed * 1.5f, dashSpeed * 0.2f, t * t); // 使用 t*t 产生类似 easeOutQuad 的减速感
 
-            // 【修复玩家下坠与跳跃平滑度】不再强制施加 Vector3.down * 4f 这会导致陡坡异常下坠和相机剧烈抖动
-            // 改为仅保留角色控制器所需的极微小贴地力(Vector3.down * 0.5f)即可保证 isGrounded
-            cc.Move((dashDir * currentSpeed + Vector3.down * 0.5f) * Time.deltaTime);
+            // 仅在贴地状态施加极小贴地力，避免冲刺中途把角色硬压向下导致镜头俯冲卡顿。
+            float stick = cc.isGrounded ? dashGroundStickForce : 0f;
+            Vector3 dashMove = dashDir * currentSpeed;
+            if (stick > 0f)
+            {
+                dashMove += Vector3.down * stick;
+            }
+
+            cc.Move(dashMove * Time.deltaTime);
             yield return null;
         }
 

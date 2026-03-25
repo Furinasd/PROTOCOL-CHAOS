@@ -45,6 +45,14 @@ public class CombatHUDManager : MonoBehaviour
     public float executePromptRange = 3.5f;
     public Vector2 executePromptPosition = new Vector2(0f, -220f);
 
+    [Header("伤害数字弹出")]
+    public Vector3 playerDamagePopupOffset = new Vector3(0f, 2.1f, 0f);
+    public Vector3 enemyDamagePopupOffset = new Vector3(0f, 2.4f, 0f);
+    public float damagePopupDuration = 0.35f;
+    public float damagePopupRise = 40f;
+    public float damagePopupFontSize = 36f;
+    public Color damagePopupColor = new Color(1f, 0.2f, 0.2f, 1f);
+
     private PlayerCombatReceiver playerReceiver;
     private EnemyPosture bossPosture;
     private PlayerCombatReceiver subscribedPlayerReceiver;
@@ -52,6 +60,10 @@ public class CombatHUDManager : MonoBehaviour
     private bool autoHudBuilt;
     private int executePromptScanFrameInterval = 5;
     private static readonly Collider[] executePromptOverlapBuffer = new Collider[24];
+    private Camera mainCam;
+    private RectTransform popupRoot;
+    private float lastPlayerHpRaw = -1f;
+    private float lastBossHpRaw = -1f;
 
     // 【优化】缓存 Canvas 引用，避免在 Update 每帧 FindObjectsByType
     private Canvas[] cachedCanvases;
@@ -69,8 +81,10 @@ public class CombatHUDManager : MonoBehaviour
     {
         // 将 Canvas 查找收敛到 Start 时执行一次，后续通过缓存数组使用
         cachedCanvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+        mainCam = Camera.main;
 
         RefreshReferences();
+        EnsurePopupRoot();
         if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null);
     }
 
@@ -106,8 +120,14 @@ public class CombatHUDManager : MonoBehaviour
             if (Time.frameCount % 30 == 0) RefreshReferences();
         }
 
+        if (mainCam == null)
+        {
+            mainCam = Camera.main;
+        }
+
         EnsureCanvasScaleValid();
         EnsureHudBindings();
+        EnsurePopupRoot();
         EnforcePlayerHudTopLeft();
 
         UpdatePlayerHUD();
@@ -159,18 +179,18 @@ public class CombatHUDManager : MonoBehaviour
         if (playerReceiver == null || playerHPFill == null) return;
 
         float target = Mathf.Clamp01(playerReceiver.currentHP / Mathf.Max(1f, playerReceiver.maxHP));
-        playerHPFill.fillAmount = target;
+        playerHPFill.fillAmount = Mathf.MoveTowards(playerHPFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
 
         if (playerHPEaseFill != null)
         {
             if (playerHPEaseFill.fillAmount > target)
             {
-                playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 5f);
+                playerHPEaseFill.fillAmount = Mathf.MoveTowards(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 3.8f);
             }
             else if (Mathf.Abs(playerHPEaseFill.fillAmount - target) > 0.001f)
             {
                 // 上升更快
-                playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
+                playerHPEaseFill.fillAmount = Mathf.MoveTowards(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 7f);
             }
         }
     }
@@ -198,34 +218,34 @@ public class CombatHUDManager : MonoBehaviour
         }
 
         float target = Mathf.Clamp01(bossPosture.currentHP / Mathf.Max(1f, bossPosture.maxHP));
-        bossHPFill.fillAmount = target;
+        bossHPFill.fillAmount = Mathf.MoveTowards(bossHPFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
 
         if (bossHPEaseFill != null)
         {
             if (bossHPEaseFill.fillAmount > target)
             {
-                bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 3f);
+                bossHPEaseFill.fillAmount = Mathf.MoveTowards(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 2.8f);
             }
             else if (Mathf.Abs(bossHPEaseFill.fillAmount - target) > 0.001f)
             {
-                bossHPEaseFill.fillAmount = Mathf.Lerp(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 6f);
+                bossHPEaseFill.fillAmount = Mathf.MoveTowards(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 6f);
             }
         }
 
         if (bossPostureFill != null)
         {
             float postureTarget = bossPosture.PosturePercentage;
-            bossPostureFill.fillAmount = postureTarget;
+            bossPostureFill.fillAmount = Mathf.MoveTowards(bossPostureFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 10f);
 
             if (bossPostureEaseFill != null)
             {
                 if (bossPostureEaseFill.fillAmount > postureTarget)
                 {
-                    bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 5f);
+                    bossPostureEaseFill.fillAmount = Mathf.MoveTowards(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 4.5f);
                 }
                 else if (Mathf.Abs(bossPostureEaseFill.fillAmount - postureTarget) > 0.001f)
                 {
-                    bossPostureEaseFill.fillAmount = Mathf.Lerp(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 8f);
+                    bossPostureEaseFill.fillAmount = Mathf.MoveTowards(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 8f);
                 }
             }
         }
@@ -254,6 +274,7 @@ public class CombatHUDManager : MonoBehaviour
 
             subscribedPlayerReceiver = playerReceiver;
             subscribedPlayerReceiver.OnHealthChanged += HandlePlayerHealthChanged;
+            lastPlayerHpRaw = subscribedPlayerReceiver.currentHP;
             HandlePlayerHealthChanged(subscribedPlayerReceiver.currentHP, subscribedPlayerReceiver.maxHP);
         }
 
@@ -268,6 +289,7 @@ public class CombatHUDManager : MonoBehaviour
             subscribedBossPosture = bossPosture;
             subscribedBossPosture.OnHealthChanged += HandleBossStatsChanged;
             subscribedBossPosture.OnPostureChanged += HandleBossStatsChanged;
+            lastBossHpRaw = subscribedBossPosture.currentHP;
             HandleBossStatsChanged(subscribedBossPosture.currentHP, subscribedBossPosture.maxHP);
         }
     }
@@ -290,11 +312,23 @@ public class CombatHUDManager : MonoBehaviour
     {
         float target = Mathf.Clamp01(current / Mathf.Max(1f, max));
 
-        if (playerHPFill != null)
-            playerHPFill.fillAmount = target;
+        float damage = (lastPlayerHpRaw < 0f) ? 0f : Mathf.Max(0f, lastPlayerHpRaw - current);
+        lastPlayerHpRaw = current;
 
-        if (playerHPEaseFill != null && playerHPEaseFill.fillAmount > target)
-            playerHPEaseFill.fillAmount = Mathf.Lerp(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 5f);
+        if (playerHPFill != null)
+            AnimateFill(playerHPFill, target, 0.08f);
+
+        if (playerHPEaseFill != null)
+            AnimateFill(playerHPEaseFill, target, damage > 0.01f ? 0.22f : 0.1f);
+
+        if (damage > 0.01f)
+        {
+            TriggerGlitchEffect(isPlayer: true);
+            if (playerReceiver != null)
+            {
+                SpawnHeadDamagePopup(playerReceiver.transform.position + playerDamagePopupOffset, Mathf.RoundToInt(damage));
+            }
+        }
     }
 
     private void HandleBossStatsChanged(float current, float max)
@@ -306,19 +340,139 @@ public class CombatHUDManager : MonoBehaviour
             bossHUDParent.SetActive(current > 0f);
 
         if (bossHPFill != null)
-            bossHPFill.fillAmount = Mathf.Clamp01(current / Mathf.Max(1f, max));
+            AnimateFill(bossHPFill, Mathf.Clamp01(current / Mathf.Max(1f, max)), 0.08f);
+
+        float damage = (lastBossHpRaw < 0f) ? 0f : Mathf.Max(0f, lastBossHpRaw - current);
+        lastBossHpRaw = current;
+
+        if (bossHPEaseFill != null)
+            AnimateFill(bossHPEaseFill, Mathf.Clamp01(current / Mathf.Max(1f, max)), damage > 0.01f ? 0.22f : 0.1f);
 
         if (bossPostureFill != null)
-            bossPostureFill.fillAmount = bossPosture.PosturePercentage;
+            AnimateFill(bossPostureFill, bossPosture.PosturePercentage, 0.1f);
+
+        if (bossPostureEaseFill != null)
+            AnimateFill(bossPostureEaseFill, bossPosture.PosturePercentage, 0.18f);
+
+        if (damage > 0.01f)
+        {
+            TriggerGlitchEffect(isPlayer: false);
+            SpawnHeadDamagePopup(bossPosture.transform.position + enemyDamagePopupOffset, Mathf.RoundToInt(damage));
+        }
     }
 
     public void TriggerGlitchEffect(bool isPlayer)
     {
-        RectTransform target = isPlayer ? playerHPContainer : (RectTransform)bossHUDParent.transform;
+        RectTransform target = isPlayer ? playerHPContainer : (bossHUDParent != null ? (RectTransform)bossHUDParent.transform : null);
         if (target != null)
         {
             target.DOShakeAnchorPos(0.2f, 8f, 25).SetUpdate(true);
         }
+    }
+
+    private void AnimateFill(Image img, float target, float duration)
+    {
+        if (img == null)
+        {
+            return;
+        }
+
+        img.DOKill();
+        img.DOFillAmount(target, duration).SetEase(Ease.OutQuad).SetUpdate(true);
+    }
+
+    private void EnsurePopupRoot()
+    {
+        if (popupRoot != null)
+        {
+            return;
+        }
+
+        Canvas canvas = null;
+        if (playerHPContainer != null)
+        {
+            canvas = playerHPContainer.GetComponentInParent<Canvas>();
+        }
+
+        if (canvas == null)
+        {
+            canvas = FindFirstObjectByType<Canvas>();
+        }
+
+        if (canvas == null)
+        {
+            return;
+        }
+
+        popupRoot = canvas.GetComponent<RectTransform>();
+    }
+
+    private void SpawnHeadDamagePopup(Vector3 worldPos, int damage)
+    {
+        if (damage <= 0)
+        {
+            return;
+        }
+
+        EnsurePopupRoot();
+        if (popupRoot == null)
+        {
+            return;
+        }
+
+        if (mainCam == null)
+        {
+            mainCam = Camera.main;
+        }
+        if (mainCam == null)
+        {
+            return;
+        }
+
+        Vector3 screenPoint = mainCam.WorldToScreenPoint(worldPos);
+        if (screenPoint.z <= 0f)
+        {
+            return;
+        }
+
+        Camera uiCam = null;
+        Canvas canvas = popupRoot.GetComponent<Canvas>();
+        if (canvas != null && canvas.renderMode == RenderMode.ScreenSpaceCamera)
+        {
+            uiCam = canvas.worldCamera;
+        }
+
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(popupRoot, screenPoint, uiCam, out Vector2 localPos))
+        {
+            return;
+        }
+
+        GameObject go = new GameObject("DamagePopup", typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.SetParent(popupRoot, false);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = localPos;
+        rt.sizeDelta = new Vector2(140f, 40f);
+
+        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.text = $"-{damage}";
+        tmp.fontSize = damagePopupFontSize;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = damagePopupColor;
+        tmp.raycastTarget = false;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            tmp.font = TMP_Settings.defaultFontAsset;
+        }
+
+        Sequence seq = DOTween.Sequence();
+        seq.Append(rt.DOAnchorPosY(localPos.y + damagePopupRise, damagePopupDuration).SetEase(Ease.OutQuad));
+        seq.Join(tmp.DOFade(0f, damagePopupDuration).SetEase(Ease.InQuad));
+        seq.OnComplete(() => Destroy(go));
+        seq.SetUpdate(true);
     }
 
     private void EnsureCanvasScaleValid()

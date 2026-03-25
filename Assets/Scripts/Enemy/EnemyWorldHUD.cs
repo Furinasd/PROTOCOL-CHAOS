@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using TMPro;
 
 /// <summary>
 /// Runtime enemy overhead UI with dual bars (HP + posture).
@@ -21,6 +22,13 @@ public class EnemyWorldHUD : MonoBehaviour
     public float hpLerpSpeed = 12f;
     public float postureLerpSpeed = 14f;
 
+    [Header("Damage Popup")]
+    public Vector2 damagePopupStart = new Vector2(0f, 18f);
+    public float damagePopupRise = 20f;
+    public float damagePopupDuration = 0.35f;
+    public float damagePopupFontSize = 24f;
+    public Color damagePopupColor = new Color(1f, 0.2f, 0.2f, 1f);
+
     [Header("Colors")]
     public Color hpColor = new Color(0.95f, 0.2f, 0.2f, 1f);
     public Color postureColor = new Color(0.3f, 0.8f, 1f, 1f);
@@ -33,15 +41,20 @@ public class EnemyWorldHUD : MonoBehaviour
     private RectTransform root;
     private Image hpFill;
     private Image postureFill;
+    private TMP_FontAsset popupFont;
 
     private float hpDisplayed = 1f;
     private float postureDisplayed = 0f;
+    private float hpTarget = 1f;
+    private float postureTarget = 0f;
+    private float lastHpRaw;
+    private float lastPostureRaw;
     private Tween pulseTween;
 
     private void Awake()
     {
         posture = GetComponent<EnemyPosture>();
-        
+
         // 确保 posture 存在
         if (posture == null)
         {
@@ -49,7 +62,7 @@ public class EnemyWorldHUD : MonoBehaviour
             Destroy(this);
             return;
         }
-        
+
         // Boss 敌人使用 CombatHUDManager 管理血条，不需要头顶HUD
         if (posture.isBoss)
         {
@@ -57,10 +70,17 @@ public class EnemyWorldHUD : MonoBehaviour
             Destroy(this);
             return;
         }
-        
+
         mainCam = Camera.main;
         BuildUI();
+        BindPostureEvents();
+        ForceSyncNow();
         Debug.Log($"[EnemyWorldHUD] 为 {gameObject.name} 创建了头顶血条UI。");
+    }
+
+    private void OnDestroy()
+    {
+        UnbindPostureEvents();
     }
 
     private void LateUpdate()
@@ -74,11 +94,8 @@ public class EnemyWorldHUD : MonoBehaviour
         root.position = anchor;
         root.forward = mainCam.transform.forward;
 
-        float hpTarget = posture.maxHP <= 0f ? 0f : Mathf.Clamp01(posture.currentHP / posture.maxHP);
-        float postureTarget = posture.PosturePercentage;
-
-        hpDisplayed = Mathf.Lerp(hpDisplayed, hpTarget, Time.deltaTime * hpLerpSpeed);
-        postureDisplayed = Mathf.Lerp(postureDisplayed, postureTarget, Time.deltaTime * postureLerpSpeed);
+        hpDisplayed = Mathf.Lerp(hpDisplayed, hpTarget, Time.unscaledDeltaTime * hpLerpSpeed);
+        postureDisplayed = Mathf.Lerp(postureDisplayed, postureTarget, Time.unscaledDeltaTime * postureLerpSpeed);
 
         hpFill.fillAmount = hpDisplayed;
         postureFill.fillAmount = postureDisplayed;
@@ -92,8 +109,112 @@ public class EnemyWorldHUD : MonoBehaviour
 
         hpDisplayed = posture.maxHP <= 0f ? 0f : Mathf.Clamp01(posture.currentHP / posture.maxHP);
         postureDisplayed = posture.PosturePercentage;
+        hpTarget = hpDisplayed;
+        postureTarget = postureDisplayed;
+        lastHpRaw = posture.currentHP;
+        lastPostureRaw = posture.currentPosture;
         hpFill.fillAmount = hpDisplayed;
         postureFill.fillAmount = postureDisplayed;
+    }
+
+    private void BindPostureEvents()
+    {
+        if (posture == null)
+        {
+            return;
+        }
+
+        posture.OnHealthChanged += HandleHealthChanged;
+        posture.OnPostureChanged += HandlePostureChanged;
+    }
+
+    private void UnbindPostureEvents()
+    {
+        if (posture == null)
+        {
+            return;
+        }
+
+        posture.OnHealthChanged -= HandleHealthChanged;
+        posture.OnPostureChanged -= HandlePostureChanged;
+    }
+
+    private void HandleHealthChanged(float current, float max)
+    {
+        hpTarget = Mathf.Clamp01(current / Mathf.Max(1f, max));
+
+        float damage = Mathf.Max(0f, lastHpRaw - current);
+        if (damage > 0.01f)
+        {
+            PulseBar(hpFill);
+            SpawnDamagePopup(Mathf.RoundToInt(damage));
+        }
+
+        lastHpRaw = current;
+    }
+
+    private void HandlePostureChanged(float current, float max)
+    {
+        postureTarget = Mathf.Clamp01(current / Mathf.Max(1f, max));
+
+        if (current > lastPostureRaw + 0.01f)
+        {
+            PulseBar(postureFill);
+        }
+
+        lastPostureRaw = current;
+    }
+
+    private void PulseBar(Image bar)
+    {
+        if (bar == null)
+        {
+            return;
+        }
+
+        RectTransform barRect = bar.rectTransform;
+        barRect.DOKill();
+        barRect.localScale = Vector3.one;
+        barRect.DOPunchScale(new Vector3(0.18f, 0.18f, 0f), 0.2f, 12, 0.7f).SetUpdate(true);
+    }
+
+    private void SpawnDamagePopup(int damage)
+    {
+        if (root == null || damage <= 0)
+        {
+            return;
+        }
+
+        GameObject go = new GameObject("DamagePopup", typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.SetParent(root, false);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = damagePopupStart;
+        rt.sizeDelta = new Vector2(120f, 36f);
+
+        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.text = $"-{damage}";
+        tmp.fontSize = damagePopupFontSize;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = damagePopupColor;
+        tmp.raycastTarget = false;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        if (popupFont == null)
+        {
+            popupFont = TMP_Settings.defaultFontAsset;
+        }
+        if (popupFont != null)
+        {
+            tmp.font = popupFont;
+        }
+
+        Sequence seq = DOTween.Sequence();
+        seq.Append(rt.DOAnchorPosY(damagePopupStart.y + damagePopupRise, damagePopupDuration).SetEase(Ease.OutQuad));
+        seq.Join(tmp.DOFade(0f, damagePopupDuration).SetEase(Ease.InQuad));
+        seq.OnComplete(() => Destroy(go));
+        seq.SetUpdate(true);
     }
 
     public void TriggerAnomalyCoreParryPulse()

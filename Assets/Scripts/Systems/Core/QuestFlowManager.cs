@@ -29,8 +29,9 @@ public class QuestFlowManager : MonoBehaviour
     [SerializeField] private bool clearSaveOnFlowCompleted = true;
     [SerializeField] private int phase1AbsorbTarget = 3;
     [SerializeField] private int phase2PerfectParryTarget = 2;
-    [SerializeField] private int phase3EnergyFullTarget = 2;
+    [SerializeField] private int phase3EnergyFullTarget = 1;
     [SerializeField] private int phase3ExecuteTarget = 1;
+    [SerializeField] private bool phase3RequireExecution = true;
     [SerializeField] private float phaseTransitionDelay = 0.4f;
 
     [Header("Spawn")]
@@ -57,6 +58,7 @@ public class QuestFlowManager : MonoBehaviour
     private int perfectParryCounter;
     private int energyFullCounter;
     private int executeCounter;
+    private bool phase3HasSpawnedTargets;
     private bool flowRunning;
     private QuestPhase loadedStartPhase = QuestPhase.Phase1;
     private bool loadedFromSave;
@@ -181,7 +183,8 @@ public class QuestFlowManager : MonoBehaviour
         {
             EnterPhase(QuestPhase.Phase3);
             SetupPhase3(!(loadedFromSave && loadedStartPhase == QuestPhase.Phase3));
-            yield return new WaitUntil(() => energyFullCounter >= phase3EnergyFullTarget && executeCounter >= phase3ExecuteTarget);
+            bool needExecution = phase3RequireExecution && phase3HasSpawnedTargets && phase3ExecuteTarget > 0;
+            yield return new WaitUntil(() => energyFullCounter >= phase3EnergyFullTarget && (!needExecution || executeCounter >= phase3ExecuteTarget));
 
             yield return TransitionToNextPhase();
         }
@@ -213,11 +216,11 @@ public class QuestFlowManager : MonoBehaviour
 
         if (playerCombatReceiver != null)
         {
-            // Phase2 只训练弹刀：关闭其它充能路径，避免目标干扰。
-            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: false, canGainDodgeEnergy: false);
+            // Phase1：开启同色吸收，关闭闪避奖励。
+            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: true, canGainDodgeEnergy: false);
         }
 
-        SpawnForCurrentPhase(phase1EnemyPrefabs, phase1SpawnRoot);
+        _ = SpawnForCurrentPhase(phase1EnemyPrefabs, phase1SpawnRoot);
         ApplyPhaseLight(1);
         EmitCurrentPhaseProgress();
         SaveProgress();
@@ -235,10 +238,11 @@ public class QuestFlowManager : MonoBehaviour
 
         if (playerCombatReceiver != null)
         {
-            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: true, canGainDodgeEnergy: false);
+            // Phase2：只训练弹刀，不走吸收/闪避充能。
+            playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: false, canGainDodgeEnergy: false);
         }
 
-        SpawnForCurrentPhase(phase2EnemyPrefabs, phase2SpawnRoot);
+        _ = SpawnForCurrentPhase(phase2EnemyPrefabs, phase2SpawnRoot);
         ApplyPhaseLight(2);
         EmitCurrentPhaseProgress();
         SaveProgress();
@@ -256,16 +260,30 @@ public class QuestFlowManager : MonoBehaviour
         energyFullCounter = Mathf.Clamp(energyFullCounter, 0, phase3EnergyFullTarget);
         executeCounter = Mathf.Clamp(executeCounter, 0, phase3ExecuteTarget);
 
+        if (playerEnergySystem != null && playerEnergySystem.currentEnergyGrids > 0)
+        {
+            int clearedAmount = playerEnergySystem.currentEnergyGrids;
+            playerEnergySystem.TryConsumeEnergy(clearedAmount);
+            Log($"Phase3 启动时已清空玩家能量（-{clearedAmount}），需要重新积攒满能后推进。");
+        }
+
         if (playerCombatReceiver != null)
         {
             playerCombatReceiver.ConfigureTutorialRules(canGainAbsorbEnergy: true, canGainDodgeEnergy: true);
         }
 
-        SpawnForCurrentPhase(phase3EnemyPrefabs, phase3SpawnRoot);
+        phase3HasSpawnedTargets = SpawnForCurrentPhase(phase3EnemyPrefabs, phase3SpawnRoot);
         ApplyPhaseLight(3);
         EmitCurrentPhaseProgress();
         SaveProgress();
-        Log("Phase3 开始：开启完整积攒机制（目标：能量回满后，通过 F 处决敌人进入决战）。");
+        if (phase3RequireExecution && !phase3HasSpawnedTargets)
+        {
+            Log("Phase3 未检测到可执行目标，已自动跳过处决门槛，避免流程卡关。");
+        }
+        else
+        {
+            Log("Phase3 开始：开启完整积攒机制（目标：能量回满后，通过 F 处决敌人进入决战）。");
+        }
     }
 
     private void SetupPhase4()
@@ -462,7 +480,7 @@ public class QuestFlowManager : MonoBehaviour
         arenaTransitionManager.ApplyPhaseLight(phaseIndex);
     }
 
-    private void SpawnForCurrentPhase(GameObject[] prefabs, Transform spawnRoot)
+    private bool SpawnForCurrentPhase(GameObject[] prefabs, Transform spawnRoot)
     {
         CleanupActiveEntitiesImmediate();
 
@@ -495,6 +513,8 @@ public class QuestFlowManager : MonoBehaviour
         {
             Debug.LogWarning($"[QuestFlow] {CurrentPhase} 未刷出敌人：请检查 Prefab 数组或在 SpawnRoot 下放置(可禁用)敌人模板子物体。", this);
         }
+
+        return spawnedAny;
     }
 
     private bool TrySpawnFromRootChildren(Transform spawnRoot, string debugPhase)

@@ -219,7 +219,7 @@ public class QuestUIManager : MonoBehaviour
             QuestFlowManager.QuestPhase.Phase3 =>
                 $"【能量循环】\n" +
                 $"实战测试开启。使用[Shift]或[Space]触发【极限闪避】获取能量，\n" +
-                $"累积 3 格能量后通过[极性湮灭]反击，压低敌方躯干后按[F]处决再进入决战!\n" +
+                $"累积 3 格能量后通过[极性湮灭]反击，压低敌方躯干后按[F]处决!\n" +
                 $"进度：({current}/{Mathf.Max(1, target)})",
 
             // 【Phase 4】：绝对失序 - Boss 战

@@ -269,6 +269,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 850635789}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: attackActiveDuration
+      value: 0.45
+      objectReference: {fileID: 0}
+    - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: forcedAttackPolarity
       value: 2
       objectReference: {fileID: 0}
@@ -563,8 +567,8 @@ MonoBehaviour:
   keyLight: {fileID: 410087040}
   lightBlendDuration: 0.45
   phase1LightColor: {r: 0.3075471, g: 0.6191511, b: 1, a: 1}
-  phase2LightColor: {r: 1, g: 0.5490196, b: 0, a: 1}
-  phase3LightColor: {r: 1, g: 0.34528297, b: 0.8235792, a: 1}
+  phase2LightColor: {r: 0.2397508, g: 0.8415094, b: 0.6678714, a: 1}
+  phase3LightColor: {r: 0.69486105, g: 0.2924527, b: 1, a: 1}
   phase4LightColor: {r: 1, g: 0.2, b: 0.2, a: 1}
   useCameraShake: 1
   shakeDuration: 0.34
@@ -927,7 +931,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 467583370}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.20456274, y: -0.20223232, z: 0.043238923, w: 0.9567584}
+  m_LocalRotation: {x: 0.21215953, y: -0.20188239, z: 0.044844687, w: 0.95510256}
   m_LocalPosition: {x: 2.15, y: 2.473529, z: -4.858585}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -967,7 +971,7 @@ Camera:
     height: 1
   near clip plane: 0.1
   far clip plane: 5000
-  field of view: 78.8
+  field of view: 91.2
   orthographic: 0
   orthographic size: 10
   m_Depth: 0
@@ -1226,7 +1230,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 78.8
+    FieldOfView: 91.2
     OrthographicSize: 10
     NearClipPlane: 0.1
     FarClipPlane: 5000
@@ -1253,7 +1257,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 558320213}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.20456275, y: -0.20223233, z: 0.043238923, w: 0.9567584}
+  m_LocalRotation: {x: 0.21215953, y: -0.20188236, z: 0.044844683, w: 0.95510256}
   m_LocalPosition: {x: 2.15, y: 2.473529, z: -4.858585}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -1337,7 +1341,8 @@ MonoBehaviour:
   phase1AbsorbTarget: 3
   phase2PerfectParryTarget: 2
   phase3EnergyFullTarget: 1
-  phase3ExecuteTarget: 2
+  phase3ExecuteTarget: 1
+  phase3RequireExecution: 1
   phaseTransitionDelay: 3
   phase1SpawnRoot: {fileID: 1848742635953233990}
   phase2SpawnRoot: {fileID: 29513380}
@@ -1568,11 +1573,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraController
   freeLookCam: {fileID: 558320217}
-  battleCam: {fileID: 0}
+  battleCam: {fileID: 558320217}
   baseFOV: 60
-  dashFOVPeak: 67.4
-  dashFOVRiseTime: 0.05
-  dashFOVFallTime: 0.35
+  dashFOVPeak: 65.6
+  dashFOVRiseTime: 0.18
+  dashFOVFallTime: 0.42
   explorationPriority: 10
   battlePriority: 20
 --- !u!1 &1002674658
@@ -2568,6 +2573,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: attackActiveDuration
+      value: 0.45
+      objectReference: {fileID: 0}
+    - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: forcedAttackPolarity
       value: 2
       objectReference: {fileID: 0}
@@ -3064,6 +3073,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: attackActiveDuration
+      value: 0.45
+      objectReference: {fileID: 0}
+    - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: forcedAttackPolarity
       value: 2
       objectReference: {fileID: 0}
@@ -3073,15 +3086,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: puddleSpawnProbability
-      value: 0.76
+      value: 0.95
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: puddleSizeMultiplierMax
-      value: 0.98
+      value: 0.92
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: puddleSizeMultiplierMin
-      value: 0.59
+      value: 0.47
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: puddleSpecialProbability
@@ -3275,12 +3288,32 @@ PrefabInstance:
       value: Player
       objectReference: {fileID: 0}
     - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
+      propertyPath: gravity
+      value: -27.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
+      propertyPath: dashSpeed
+      value: 26.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: moveSpeed
-      value: 17
+      value: 18.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
+      propertyPath: jumpHeight
+      value: 2.54
       objectReference: {fileID: 0}
     - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: arenaRadius
       value: 68.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
+      propertyPath: dashCooldown
+      value: 0.63
+      objectReference: {fileID: 0}
+    - target: {fileID: 1615802587114657279, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
+      propertyPath: dashDuration
+      value: 0.29
       objectReference: {fileID: 0}
     - target: {fileID: 1963942175144383745, guid: 5dbda5189b699d24d8151c6d47ea022c, type: 3}
       propertyPath: m_LocalPosition.x
@@ -3432,6 +3465,10 @@ PrefabInstance:
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: forceAttackPolarity
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
+      propertyPath: attackActiveDuration
+      value: 0.45
       objectReference: {fileID: 0}
     - target: {fileID: 7476941741676707695, guid: 7b910cd0901c43b42887933b97d1a42e, type: 3}
       propertyPath: groundLayerMask.m_Bits
