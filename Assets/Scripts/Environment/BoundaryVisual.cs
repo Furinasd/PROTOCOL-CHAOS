@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Legacy boundary visual bridge.
-/// Keeps old scene references valid after script reorganization.
+/// 边界可视化桥接器。
+/// 保持旧场景引用在脚本重组后仍然有效。
 /// </summary>
 [RequireComponent(typeof(LineRenderer))]
 public class BoundaryVisual : MonoBehaviour

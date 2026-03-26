@@ -3,7 +3,6 @@ using DG.Tweening;
 
 // ==========================================
 // Title: 砸地冲击与污染区表现 (Tech-Design Simplified VFX)
-// Author: Antigravity Assistant
 // Description: 为策划提供的轻量化视觉反馈脚本。
 // 通过 DOTween 控制缩放与透明度，代替重度粒子计算。
 // ==========================================

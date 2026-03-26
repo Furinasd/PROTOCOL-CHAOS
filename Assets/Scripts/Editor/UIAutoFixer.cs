@@ -46,13 +46,13 @@ public class UIAutoFixer
             }
         }
 
-        // 3. 【已废弃】该部分逻辑由于硬编码坐标与新的 Quest 布局冲突，已彻底移除。
-        /*
-        GameObject FindObj(string name) { ... }
-        GameObject qfm = FindObj("QuestFlowManager");
-        ... (此处略去 80 行冲突代码) ...
-        */
+        // [废弃逻辑 - 保留原因]
+        // 此处原含 Quest UI 布局的硬编码坐标修复逻辑（约 80 行）。
+        // 由于 QuestFlowManager / QuestUIManager 重构后采用了自适应锚点布局，
+        // 原有的硬编码坐标与新布局冲突，已彻底移除该部分实现。
+        // 保留此注释以记录决策过程，提醒后续维护者勿在此再次引入硬编码布局修复。
         Debug.Log("<color=green>✅ UIAutoFixer: 已跳过过时的 Quest 系统硬编码布局修复。</color>");
+
     }
 
     private static TMP_FontAsset FindMiSansFont()

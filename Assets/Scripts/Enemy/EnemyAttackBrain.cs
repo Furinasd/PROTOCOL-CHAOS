@@ -259,7 +259,6 @@ public class EnemyAttackBrain : MonoBehaviour
             return;
         }
 
-        // 【TD 升华】RaycastNonAlloc：向下单射线求交点——这是贴地的数学正解。
         // 起点抬高 2m 防止原点陷入地下；缓冲区 [1] 取首个命中，0 GC，O(1)。
         // 同时通过 groundLayerMask 在 C++ 层直接过滤，彻底告别 string.Contains() 字符串毒药。
         int hitCount = Physics.RaycastNonAlloc(

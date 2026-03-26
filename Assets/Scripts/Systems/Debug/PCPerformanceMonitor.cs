@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 #endif
 
 /// <summary>
-/// 【TD 级重构】零 GC 性能监控仪。
+/// 零 GC 性能监控仪。
 /// 使用 TextMeshProUGUI.SetText(StringBuilder) 原生零拷贝赋值，
 /// 手写 AppendInt/AppendLong 彻底消除数值拼接产生的装箱 (boxing)。
 /// 替代 MinimalPerformanceMonitor（OnGUI 方案）。

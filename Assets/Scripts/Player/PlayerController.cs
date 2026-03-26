@@ -140,10 +140,13 @@ public class PlayerController : MonoBehaviour
             cachedCombatReceiver.isStandingOnAnomalyCore = isInsideCore;
     }
 
-    // 兼容层：ChaosPuddle 旧版可能残留的调用（重构后 Puddle 不再调用这两个接口）
-    [System.Obsolete("主从架构 v2 中 Puddle 不再主动调用 RegisterPuddle，该函数保留仅作兼容过渡")]
+    // [兼容桩 - 保留原因]
+    // 环境感知系统已从事件驱动（Puddle 主动推送）重构为主从轮询架构（PlayerController 侧低频 Poll）。
+    // 旧版 ChaosPuddle 脚本或外部调用方可能仍持有对这两个接口的引用，
+    // 保留空桩以避免编译报错，待全部引用方确认更新后可安全删除。
+    [System.Obsolete("主从架构 v2：Puddle 不再主动调用此接口，由 PollEnvironmentalConditions() 统一轮询替代。")]
     public void RegisterPuddle(ChaosPuddle p) { }
-    [System.Obsolete("主从架构 v2 中 Puddle 不再主动调用 UnregisterPuddle，该函数保留仅作兼容过渡")]
+    [System.Obsolete("主从架构 v2：Puddle 不再主动调用此接口，由 PollEnvironmentalConditions() 统一轮询替代。")]
     public void UnregisterPuddle(ChaosPuddle p) { }
     private PlayerState previousStateBeforeHitlag = PlayerState.Normal;
     private Coroutine hitlagCoroutine;
@@ -440,10 +443,11 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    private void HandleDash()
-    {
-        // 该逻辑已废弃，统一通过 ProcessInputBuffer 呼叫
-    }
+    // [废弃方法 - 保留原因]
+    // HandleDash() 原为直接在 Update 中轮询输入并触发冲刺的入口。
+    // 重构为预输入缓冲系统（Input Buffer）后，冲刺触发统一由 ProcessInputBuffer() 消化 InputType.Dash 指令完成。
+    // 保留此空壳以记录架构演进过程，并防止潜在的外部反射调用报错。
+    private void HandleDash() { }
 
     private IEnumerator DashRoutine()
     {

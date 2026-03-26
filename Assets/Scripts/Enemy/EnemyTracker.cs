@@ -2,7 +2,6 @@ using UnityEngine;
 
 // ==========================================
 // Title: 敌方动态追踪控制器 (Smooth Lerp 方案)
-// Author: 白糖 & 精灵小姐
 // Description: 处理带有重量感的平滑追踪，以及硬核动作游戏必备的"攻击锁定帧(Lock-in)"机制
 // ==========================================
 public class EnemyTracker : MonoBehaviour

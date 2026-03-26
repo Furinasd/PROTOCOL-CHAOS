@@ -25,21 +25,10 @@ public class CombatHUDManager : MonoBehaviour
     }
 
     [Header("玩家组件")]
-    public Image playerHPFill;
-    public Image playerHPEaseFill;
     public RectTransform playerHPContainer;
-
-    [Header("玩家血条布局")]
-    public bool lockPlayerHudTopLeft = true;
-    public Vector2 playerHudTopLeftOffset = new Vector2(170f, -70f);
-    public Vector2 playerHudSize = new Vector2(220f, 24f);
 
     [Header("Boss 组件")]
     public GameObject bossHUDParent;
-    public Image bossHPFill;
-    public Image bossHPEaseFill;
-    public Image bossPostureFill;
-    public Image bossPostureEaseFill;
 
     [Header("处决提示")]
     public TextMeshProUGUI executePromptText;
@@ -227,17 +216,7 @@ public class CombatHUDManager : MonoBehaviour
             bossHUDParent.SetActive(shouldShow);
     }
 
-    public void ForceRefreshBossUI()
-    {
-        if (bossPosture == null) RefreshReferences();
-        if (bossPosture == null) return;
-
-        if (bossHPFill != null)
-            bossHPFill.fillAmount = Mathf.Clamp01(bossPosture.currentHP / bossPosture.maxHP);
-
-        if (bossPostureFill != null)
-            bossPostureFill.fillAmount = bossPosture.PosturePercentage;
-    }
+    public void ForceRefreshBossUI() { }
 
     private void BindHUDEvents()
     {
@@ -286,49 +265,23 @@ public class CombatHUDManager : MonoBehaviour
 
     private void HandlePlayerHealthChanged(float current, float max)
     {
-        float target = Mathf.Clamp01(current / Mathf.Max(1f, max));
-
         float damage = (lastPlayerHpRaw < 0f) ? 0f : Mathf.Max(0f, lastPlayerHpRaw - current);
         lastPlayerHpRaw = current;
-
-        if (playerHPFill != null)
-            AnimateFill(playerHPFill, target, 0.08f);
-
-        if (playerHPEaseFill != null)
-            AnimateFill(playerHPEaseFill, target, damage > 0.01f ? 0.22f : 0.1f);
 
         if (damage > 0.01f)
         {
             TriggerGlitchEffect(isPlayer: true);
             if (playerReceiver != null)
-            {
                 SpawnHeadDamagePopup(playerReceiver.transform.position + playerDamagePopupOffset, Mathf.RoundToInt(damage));
-            }
         }
     }
 
     private void HandleBossStatsChanged(float current, float max)
     {
-        if (bossPosture == null)
-            return;
-
-        if (bossHUDParent != null)
-            bossHUDParent.SetActive(current > 0f);
-
-        if (bossHPFill != null)
-            AnimateFill(bossHPFill, Mathf.Clamp01(current / Mathf.Max(1f, max)), 0.08f);
+        if (bossPosture == null) return;
 
         float damage = (lastBossHpRaw < 0f) ? 0f : Mathf.Max(0f, lastBossHpRaw - current);
         lastBossHpRaw = current;
-
-        if (bossHPEaseFill != null)
-            AnimateFill(bossHPEaseFill, Mathf.Clamp01(current / Mathf.Max(1f, max)), damage > 0.01f ? 0.22f : 0.1f);
-
-        if (bossPostureFill != null)
-            AnimateFill(bossPostureFill, bossPosture.PosturePercentage, 0.1f);
-
-        if (bossPostureEaseFill != null)
-            AnimateFill(bossPostureEaseFill, bossPosture.PosturePercentage, 0.18f);
 
         if (damage > 0.01f)
         {
@@ -346,16 +299,7 @@ public class CombatHUDManager : MonoBehaviour
         }
     }
 
-    private void AnimateFill(Image img, float target, float duration)
-    {
-        if (img == null)
-        {
-            return;
-        }
-
-        img.DOKill();
-        img.DOFillAmount(target, duration).SetEase(Ease.OutQuad).SetUpdate(true);
-    }
+    private void AnimateFill(Image img, float target, float duration) { }
 
     private void EnsurePopupRoot()
     {
@@ -400,7 +344,7 @@ public class CombatHUDManager : MonoBehaviour
         if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(popupRoot, screenPoint, uiCam, out Vector2 localPos))
             return;
 
-        // 【TD 核心优化】从池中获取，0 GC，0 运行时资源申请
+        // 从池中获取，0 GC，0 运行时资源申请
         TextMeshProUGUI tmp = (popupPool.Count > 0) ? popupPool.Dequeue() : CreateNewPopupInstance();
         RectTransform rt = tmp.rectTransform;
         
@@ -440,7 +384,7 @@ public class CombatHUDManager : MonoBehaviour
 
     private void EnsureHudBindings()
     {
-        if (playerHPFill != null && playerHPContainer != null && bossHPFill != null && bossPostureFill != null)
+        if (playerHPContainer != null)
         {
             EnsureExecutePromptBinding();
             return;
@@ -448,55 +392,14 @@ public class CombatHUDManager : MonoBehaviour
 
         if (!autoHudBuilt)
         {
-            if (playerHPFill == null && bossHPFill == null && bossPostureFill == null)
-            {
-                Debug.Log("[CombatHUDManager] All HUD bindings empty, building Auto Fallback HUD.");
-                BuildFallbackHUD();
-            }
-            else
-            {
-                Debug.LogError("[CombatHUDManager] HUD bindings are incorrectly assigned! Some fields are assigned while others are null! Please assign ALL fields in CombatHUDManager inspector. (PlayerHPFill, BossHPFill, BossPostureFill). UI will not update properly until you fix this!");
-            }
+            // 对于极性测试，不再强制要求 HP 绑定
             autoHudBuilt = true;
         }
     }
 
-    private void BuildFallbackHUD()
-    {
-        GameObject canvasGo = new GameObject("CombatHUD_Auto", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        Canvas canvas = canvasGo.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 500;
-
-        CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-
-        RectTransform root = canvasGo.GetComponent<RectTransform>();
-        root.anchorMin = Vector2.zero;
-        root.anchorMax = Vector2.one;
-        root.offsetMin = Vector2.zero;
-        root.offsetMax = Vector2.zero;
-
-        playerHPContainer = CreatePanel("PlayerHP_Container", root, new Vector2(0f, 1f), new Vector2(0f, 1f), playerHudSize, playerHudTopLeftOffset);
-        CreateBarSet(playerHPContainer, "PlayerHP", out playerHPFill, out playerHPEaseFill, new Color(0.9f, 0.2f, 0.2f, 1f));
-
-        RectTransform bossContainer = CreatePanel("BossHUD_Container", root, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(420f, 56f), new Vector2(0f, -56f));
-        bossHUDParent = bossContainer.gameObject;
-        CreateBarSet(bossContainer, "BossHP", out bossHPFill, out bossHPEaseFill, new Color(0.95f, 0.25f, 0.25f, 1f), new Vector2(0f, 10f), new Vector2(360f, 14f));
-        CreateBarSet(bossContainer, "BossPosture", out bossPostureFill, out bossPostureEaseFill, new Color(0.3f, 0.8f, 1f, 1f), new Vector2(0f, -12f), new Vector2(360f, 10f));
-
-        executePromptText = CreateExecutePrompt(root);
-
-        bossHUDParent.SetActive(false);
-    }
-
     private void EnsureExecutePromptBinding()
     {
-        if (executePromptText != null)
-        {
-            return;
-        }
+        if (executePromptText != null) return;
 
         TextMeshProUGUI[] allTexts = FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < allTexts.Length; i++)
@@ -510,12 +413,8 @@ public class CombatHUDManager : MonoBehaviour
         }
 
         Canvas targetCanvas = FindFirstObjectByType<Canvas>();
-        if (targetCanvas == null)
-        {
-            return;
-        }
-
-        executePromptText = CreateExecutePrompt(targetCanvas.GetComponent<RectTransform>());
+        if (targetCanvas != null)
+            executePromptText = CreateExecutePrompt(targetCanvas.GetComponent<RectTransform>());
     }
 
     private TextMeshProUGUI CreateExecutePrompt(RectTransform root)
@@ -542,16 +441,7 @@ public class CombatHUDManager : MonoBehaviour
         return tmp;
     }
 
-    private void EnforcePlayerHudTopLeft()
-    {
-        if (!lockPlayerHudTopLeft || playerHPContainer == null) return;
-
-        playerHPContainer.anchorMin = new Vector2(0f, 1f);
-        playerHPContainer.anchorMax = new Vector2(0f, 1f);
-        playerHPContainer.pivot = new Vector2(0.5f, 0.5f);
-        playerHPContainer.anchoredPosition = playerHudTopLeftOffset;
-        playerHPContainer.sizeDelta = playerHudSize;
-    }
+    private void EnforcePlayerHudTopLeft() { }
 
     private GameObject TryFindByTag(string tag)
     {

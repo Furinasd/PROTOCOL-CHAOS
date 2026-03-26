@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 // ==========================================
 // Title: 敌方纯代码伤害判定盒 (OverlapBox 方案)
-// Author: 白糖 & 精灵小姐 (Refactored by TD)
 // Description: 脱离物理引擎黑盒，实现完全由状态机驱动的精准打击判定。
 // 附带防重复击中(HashSet)与可视化调试(Gizmos)。
 // ==========================================
@@ -139,7 +138,7 @@ public class EnemyHitbox : MonoBehaviour
         }
     }
 
-    // TD 专属：可视化辅助工具！
+    // 可视化辅助工具！
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = isActive ? new Color(1, 0, 0, 0.5f) : new Color(0, 1, 0, 0.2f);

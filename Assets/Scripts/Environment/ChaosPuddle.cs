@@ -4,7 +4,6 @@ using DG.Tweening;
 
 // ==========================================
 // Title: 混沌地板节点 (Grid Contamination)
-// Author: 白糖 & 精灵小姐 (Redesigned by Antigravity)
 // Description: 【主从架构版 v2】
 //   本节点已完全退化为"被动数据层"：
 //   - 仅持有极性属性与视觉组件（LineRenderer / Light / MeshRenderer）
@@ -106,7 +105,7 @@ public class ChaosPuddle : MonoBehaviour
     private void OnDisable()
     {
         PuddleManager.OnGlobalPurify -= Purify;
-        // 【TD 级安全保险】如果物件被直接禁用或销毁，确保从活跃列表剔除，防止 PlayerController 列表膨胀
+        // 如果物件被直接禁用或销毁，确保从活跃列表剔除，防止 PlayerController 列表膨胀
         if (PuddleManager.Instance != null)
             PuddleManager.Instance.UnregisterActivePuddle(this);
 

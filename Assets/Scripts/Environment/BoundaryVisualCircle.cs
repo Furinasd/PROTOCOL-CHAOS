@@ -37,7 +37,7 @@ public class BoundaryVisualCircle : MonoBehaviour
             }
         }
         
-        // Ensure visual is always correct in editor even if script reloads
+        // 确保在编辑器中即使脚本重新加载，视觉效果也始终正确
         if (!Application.isPlaying && Time.frameCount % 30 == 0) 
         {
             RefreshCirclePositions();
@@ -56,7 +56,7 @@ public class BoundaryVisualCircle : MonoBehaviour
 
         float radius = (playerController != null) ? playerController.arenaRadius : 20f;
 
-        // Force a readable ring in runtime: avoid ground z-fighting and local transform distortion.
+        // 强制在运行时渲染可读的环形：避免地面Z轴冲突和局部变换失真。
         line.useWorldSpace = true;
         line.loop = true;
         line.positionCount = Mathf.Max(8, circleSegments);
