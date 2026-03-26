@@ -100,6 +100,10 @@ public class ChaosPuddle : MonoBehaviour
     private void OnDisable()
     {
         PuddleManager.OnGlobalPurify -= Purify;
+        // 【TD 级安全保险】如果物件被直接禁用或销毁，确保从活跃列表剔除，防止 PlayerController 列表膨胀
+        if (PuddleManager.Instance != null)
+            PuddleManager.Instance.UnregisterActivePuddle(this);
+
         StopAllCoroutines();
         transform.DOKill();
     }

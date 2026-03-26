@@ -34,10 +34,12 @@ public class PuddleManager : MonoBehaviour
     /// <summary>由 ChaosPuddle.Purify() 在净化时调用，O(1) 级别替换删减。</summary>
     public void UnregisterActivePuddle(ChaosPuddle puddle)
     {
+        if (puddle == null) return;
         int idx = activePuddles.IndexOf(puddle);
         if (idx < 0) return;
-        // Swap-and-pop：O(1) 无序移除，避免大列表逐元素位移
+        
         int last = activePuddles.Count - 1;
+        // Swap-and-pop：O(1) 无序移除
         activePuddles[idx] = activePuddles[last];
         activePuddles.RemoveAt(last);
     }

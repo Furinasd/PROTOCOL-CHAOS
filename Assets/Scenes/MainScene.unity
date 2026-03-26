@@ -155,7 +155,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: -46, y: -37.3}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &24289488
@@ -328,9 +328,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1333091351}
     m_Modifications:
+    - target: {fileID: 111033252693359283, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -292
+      objectReference: {fileID: 0}
+    - target: {fileID: 111033252693359283, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 86
+      objectReference: {fileID: 0}
     - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_fontSize
-      value: 28
+      value: 26.87
       objectReference: {fileID: 0}
     - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_fontStyle
@@ -338,7 +346,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 543092927769807043, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_fontSizeBase
-      value: 28
+      value: 26.87
+      objectReference: {fileID: 0}
+    - target: {fileID: 763475879466357574, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -390
+      objectReference: {fileID: 0}
+    - target: {fileID: 763475879466357574, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 197
       objectReference: {fileID: 0}
     - target: {fileID: 1236327868000349023, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_Name
@@ -414,11 +430,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -6
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -581
+      value: -119
       objectReference: {fileID: 0}
     - target: {fileID: 2458663977024077513, guid: ca57a1249ccc2df4aad710c73f5b3462, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -2327,12 +2343,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
   bgmBattleP1: {fileID: 8300000, guid: 13538037c98a0e24ebef2f0de7c5f0cd, type: 3}
   bgmBattleP2: {fileID: 8300000, guid: 8e6d5d46d2d77a242a115764cbf391c4, type: 3}
-  sfxPlayerDash: {fileID: 0}
-  sfxPolaritySwitch: {fileID: 0}
-  sfxPerfectParry: {fileID: 0}
-  sfxEnergyAbsorb: {fileID: 0}
-  sfxPlayerDamage: {fileID: 0}
-  sfxExecutionHit: {fileID: 0}
+  sfxPlayerDash: {fileID: 8300000, guid: 72b57cb726c74494db65fe251685d74b, type: 3}
+  sfxPolaritySwitch: {fileID: 8300000, guid: 030918ddc67a28344adcb23ed74487ab, type: 3}
+  sfxPerfectParry: {fileID: 8300000, guid: e532b574ac2d96349addb2e8dbe8c5e4, type: 3}
+  sfxEnergyAbsorb: {fileID: 8300000, guid: a28347842910cbb4e9bf9aee505985e2, type: 3}
+  sfxPlayerDamage: {fileID: 8300000, guid: 01f4a0f598661584480758f49b6debca, type: 3}
+  sfxExecutionHit: {fileID: 8300000, guid: 56fa76fb3264e914984d4dc771919f19, type: 3}
   sfxBossTelegraph: {fileID: 0}
   sfxBossSwingFast: {fileID: 0}
   sfxBossSwingHeavy: {fileID: 0}

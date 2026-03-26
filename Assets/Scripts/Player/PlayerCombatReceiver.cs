@@ -246,6 +246,25 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
         return false;
     }
 
+    /// <summary>
+    /// 环境持续伤害直通入口：跳过弹刀/极性判定，只处理生命扣减、UI 同步与死亡流程。
+    /// </summary>
+    public void ApplyEnvironmentalDamage(float damage)
+    {
+        if (currentHP <= 0f || damage <= 0f)
+        {
+            return;
+        }
+
+        currentHP = Mathf.Max(0f, currentHP - damage);
+        NotifyHealthChanged();
+
+        if (currentHP <= 0f)
+        {
+            Die();
+        }
+    }
+
     public void Die()
     {
         if (currentHP > 0) currentHP = 0;
@@ -271,8 +290,13 @@ public class PlayerCombatReceiver : MonoBehaviour, IDamageable
                 TimeManager.Instance.DoHitstop(0.5f, 0.05f);
         }
 
-        // 【3. 状态清理】：恢复时间缩放并杀死所有残留 Tween，防止干扰 UI 动画
-        DOTween.KillAll();
+        // 【3. 状态清理】：仅 Kill 玩家 visualRoot 上的残留 Tween，
+        // 不再调用 KillAll 以避免误杀 HUD 血条的 DOFillAmount 动画。
+        if (controller != null && controller.visualRoot != null)
+        {
+            controller.visualRoot.DOKill();
+        }
+        DOTween.Kill(gameObject);
 
         // 【4. 触发 UI】：交给 GameOverManager 处理接下来的视觉演出
         if (GameOverManager.Instance != null)

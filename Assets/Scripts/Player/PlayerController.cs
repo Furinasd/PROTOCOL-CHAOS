@@ -121,7 +121,7 @@ public class PlayerController : MonoBehaviour
             if (cachedCombatReceiver != null)
             {
                 float dmg = worstDamageRate * envPollInterval;
-                cachedCombatReceiver.currentHP = Mathf.Max(0f, cachedCombatReceiver.currentHP - dmg);
+                cachedCombatReceiver.ApplyEnvironmentalDamage(dmg);
                 if (cachedCombatReceiver.currentHP <= 0f)
                     Debug.Log("<color=red>☠️ [Env] 污染区将玩家 HP 扣至 0</color>");
 

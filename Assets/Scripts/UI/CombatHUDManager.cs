@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 using TMPro;
+using System.Collections.Generic;
 
 public class CombatHUDManager : MonoBehaviour
 {
@@ -65,6 +66,10 @@ public class CombatHUDManager : MonoBehaviour
     private float lastPlayerHpRaw = -1f;
     private float lastBossHpRaw = -1f;
 
+    // 【TD 级优化】伤害漂字对象池，防止 792MB 内存雪崩
+    private readonly Queue<TextMeshProUGUI> popupPool = new Queue<TextMeshProUGUI>();
+    private const int INITIAL_POPUP_COUNT = 30;
+
     // 【优化】缓存 Canvas 引用，避免在 Update 每帧 FindObjectsByType
     private Canvas[] cachedCanvases;
 
@@ -85,7 +90,40 @@ public class CombatHUDManager : MonoBehaviour
 
         RefreshReferences();
         EnsurePopupRoot();
+        InitializePopupPool(); // 预热对象池
         if (bossHUDParent != null) bossHUDParent.SetActive(bossPosture != null);
+    }
+
+    private void InitializePopupPool()
+    {
+        if (popupRoot == null) EnsurePopupRoot();
+        if (popupRoot == null) return;
+
+        for (int i = 0; i < INITIAL_POPUP_COUNT; i++)
+        {
+            popupPool.Enqueue(CreateNewPopupInstance());
+        }
+    }
+
+    private TextMeshProUGUI CreateNewPopupInstance()
+    {
+        GameObject go = new GameObject("DamagePopup_Pooled", typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.SetParent(popupRoot, false);
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        
+        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        tmp.fontSize = damagePopupFontSize;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = damagePopupColor;
+        tmp.raycastTarget = false;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        if (TMP_Settings.defaultFontAsset != null) tmp.font = TMP_Settings.defaultFontAsset;
+        
+        go.SetActive(false);
+        return tmp;
     }
 
     public void RefreshReferences()
@@ -174,81 +212,19 @@ public class CombatHUDManager : MonoBehaviour
         return false;
     }
 
-    private void UpdatePlayerHUD()
-    {
-        if (playerReceiver == null || playerHPFill == null) return;
+    // 【已清除】UpdatePlayerHUD 的 MoveTowards 轮询已移除，
+    // 血条更新完全由 BindHUDEvents / HandlePlayerHealthChanged 事件驱动，避免双轨覆盖。
+    private void UpdatePlayerHUD() { }
 
-        float target = Mathf.Clamp01(playerReceiver.currentHP / Mathf.Max(1f, playerReceiver.maxHP));
-        playerHPFill.fillAmount = Mathf.MoveTowards(playerHPFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
-
-        if (playerHPEaseFill != null)
-        {
-            if (playerHPEaseFill.fillAmount > target)
-            {
-                playerHPEaseFill.fillAmount = Mathf.MoveTowards(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 3.8f);
-            }
-            else if (Mathf.Abs(playerHPEaseFill.fillAmount - target) > 0.001f)
-            {
-                // 上升更快
-                playerHPEaseFill.fillAmount = Mathf.MoveTowards(playerHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 7f);
-            }
-        }
-    }
-
+    // 【已清除】UpdateBossHUD 的 MoveTowards 轮询已移除，
+    // Boss 血条更新完全由 BindHUDEvents / HandleBossStatsChanged 事件驱动，避免双轨覆盖。
     private void UpdateBossHUD()
     {
-        if (bossPosture == null || bossHPFill == null)
-        {
-            if (bossHUDParent != null && bossHUDParent.activeSelf)
-            {
-                bossHUDParent.SetActive(false);
-            }
-            return;
-        }
-
-        if (bossHUDParent != null && !bossHUDParent.activeSelf && bossPosture.currentHP > 0)
-        {
-            bossHUDParent.SetActive(true);
-        }
-
-        if (bossPosture.currentHP <= 0 && bossHUDParent != null && bossHUDParent.activeSelf)
-        {
-            bossHUDParent.SetActive(false);
-            return;
-        }
-
-        float target = Mathf.Clamp01(bossPosture.currentHP / Mathf.Max(1f, bossPosture.maxHP));
-        bossHPFill.fillAmount = Mathf.MoveTowards(bossHPFill.fillAmount, target, Time.unscaledDeltaTime * 8f);
-
-        if (bossHPEaseFill != null)
-        {
-            if (bossHPEaseFill.fillAmount > target)
-            {
-                bossHPEaseFill.fillAmount = Mathf.MoveTowards(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 2.8f);
-            }
-            else if (Mathf.Abs(bossHPEaseFill.fillAmount - target) > 0.001f)
-            {
-                bossHPEaseFill.fillAmount = Mathf.MoveTowards(bossHPEaseFill.fillAmount, target, Time.unscaledDeltaTime * 6f);
-            }
-        }
-
-        if (bossPostureFill != null)
-        {
-            float postureTarget = bossPosture.PosturePercentage;
-            bossPostureFill.fillAmount = Mathf.MoveTowards(bossPostureFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 10f);
-
-            if (bossPostureEaseFill != null)
-            {
-                if (bossPostureEaseFill.fillAmount > postureTarget)
-                {
-                    bossPostureEaseFill.fillAmount = Mathf.MoveTowards(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 4.5f);
-                }
-                else if (Mathf.Abs(bossPostureEaseFill.fillAmount - postureTarget) > 0.001f)
-                {
-                    bossPostureEaseFill.fillAmount = Mathf.MoveTowards(bossPostureEaseFill.fillAmount, postureTarget, Time.unscaledDeltaTime * 8f);
-                }
-            }
-        }
+        // 仅处理可见性：状态检查不干扰血条值
+        if (bossHUDParent == null) return;
+        bool shouldShow = bossPosture != null && bossPosture.currentHP > 0;
+        if (bossHUDParent.activeSelf != shouldShow)
+            bossHUDParent.SetActive(shouldShow);
     }
 
     public void ForceRefreshBossUI()
@@ -407,71 +383,39 @@ public class CombatHUDManager : MonoBehaviour
         popupRoot = canvas.GetComponent<RectTransform>();
     }
 
-    private void SpawnHeadDamagePopup(Vector3 worldPos, int damage)
+    public void SpawnHeadDamagePopup(Vector3 worldPos, int damage)
     {
-        if (damage <= 0)
-        {
-            return;
-        }
-
+        if (damage <= 0) return;
         EnsurePopupRoot();
-        if (popupRoot == null)
-        {
-            return;
-        }
-
-        if (mainCam == null)
-        {
-            mainCam = Camera.main;
-        }
-        if (mainCam == null)
-        {
-            return;
-        }
+        if (popupRoot == null || mainCam == null) return;
 
         Vector3 screenPoint = mainCam.WorldToScreenPoint(worldPos);
-        if (screenPoint.z <= 0f)
-        {
-            return;
-        }
+        if (screenPoint.z <= 0f) return;
 
         Camera uiCam = null;
         Canvas canvas = popupRoot.GetComponent<Canvas>();
         if (canvas != null && canvas.renderMode == RenderMode.ScreenSpaceCamera)
-        {
             uiCam = canvas.worldCamera;
-        }
 
         if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(popupRoot, screenPoint, uiCam, out Vector2 localPos))
-        {
             return;
-        }
 
-        GameObject go = new GameObject("DamagePopup", typeof(RectTransform), typeof(TextMeshProUGUI));
-        RectTransform rt = go.GetComponent<RectTransform>();
-        rt.SetParent(popupRoot, false);
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = localPos;
-        rt.sizeDelta = new Vector2(140f, 40f);
-
-        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
+        // 【TD 核心优化】从池中获取，0 GC，0 运行时资源申请
+        TextMeshProUGUI tmp = (popupPool.Count > 0) ? popupPool.Dequeue() : CreateNewPopupInstance();
+        RectTransform rt = tmp.rectTransform;
+        
+        tmp.gameObject.SetActive(true);
         tmp.text = $"-{damage}";
-        tmp.fontSize = damagePopupFontSize;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = damagePopupColor;
-        tmp.raycastTarget = false;
-        tmp.textWrappingMode = TextWrappingModes.NoWrap;
-        if (TMP_Settings.defaultFontAsset != null)
-        {
-            tmp.font = TMP_Settings.defaultFontAsset;
-        }
+        tmp.alpha = 1f;
+        rt.anchoredPosition = localPos;
 
         Sequence seq = DOTween.Sequence();
         seq.Append(rt.DOAnchorPosY(localPos.y + damagePopupRise, damagePopupDuration).SetEase(Ease.OutQuad));
         seq.Join(tmp.DOFade(0f, damagePopupDuration).SetEase(Ease.InQuad));
-        seq.OnComplete(() => Destroy(go));
+        seq.OnComplete(() => {
+            tmp.gameObject.SetActive(false);
+            popupPool.Enqueue(tmp); // 回池复用
+        });
         seq.SetUpdate(true);
     }
 

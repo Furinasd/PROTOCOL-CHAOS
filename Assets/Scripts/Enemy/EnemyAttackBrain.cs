@@ -74,8 +74,10 @@ public class EnemyAttackBrain : MonoBehaviour
     [Tooltip("必须设置为包含 Ground 层，否则 Puddle 射线无法命中地面！")]
     public LayerMask groundLayerMask;
 
-    // 预分配 RaycastHit 缓冲区，避免每次攻击都分配新数组（零 GC）
-    private static readonly RaycastHit[] groundHitBuffer = new RaycastHit[8];
+    // 向下单射线只需命中首层地面，缓冲 [1] 完全够用，节省内存
+    private static readonly RaycastHit[] groundHitBuffer = new RaycastHit[1];
+    // TD 升华：Awake() 中预缓存 Layer ID，消除热路径字符串查找 O(n) → O(1)
+    private int cachedGroundLayer;
 
     private EnemyVisualController visualController;
     private EnemyShapeMorpher shapeMorpher;
@@ -92,6 +94,9 @@ public class EnemyAttackBrain : MonoBehaviour
         posture = GetComponent<EnemyPosture>();
         tracker = GetComponent<EnemyTracker>();
         cooldownTimer = attackCooldown;
+
+        // 一次性缓存 Layer ID，热路径零字符串查找
+        cachedGroundLayer = LayerMask.NameToLayer("Ground");
 
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
@@ -233,7 +238,7 @@ public class EnemyAttackBrain : MonoBehaviour
             if (targetHitbox != null) targetHitbox.DeactivateHitbox();
 
             // 【阶段六：环境污染生成】
-            TrySpawnChaosPuddle(attackPolarity);
+            TrySpawnChaosPuddle(playerTransform != null ? playerTransform.position : transform.position);
 
             visualController.ResetVisual();
             CurrentState = EnemyState.Recovering;
@@ -242,29 +247,23 @@ public class EnemyAttackBrain : MonoBehaviour
         onComplete?.Invoke();
     }
 
-    private void TrySpawnChaosPuddle(Polarity polarity)
+    /// <param name="spawnPos">生成坐标（通常为攻击瞬间的玩家位置）</param>
+    private void TrySpawnChaosPuddle(Vector3 spawnPos)
     {
-        if (playerTransform == null) return;
-
         // 概率控制判定
-        if (Random.value > puddleSpawnProbability)
-        {
-            return;
-        }
+        if (Random.value > puddleSpawnProbability) return;
 
-        // 在攻击瞬间玩家所在位置生成
-        Vector3 spawnPos = playerTransform.position;
-
-        // 【极限优化】RaycastNonAlloc：使用预分配 Buffer，零 GC
-        // 同时使用 LayerMask 在 C++ 物理层直接过滤非地面对象，彻底告别 name.Contains() 字符串毒药
         if (groundLayerMask == 0)
         {
             Debug.LogWarning("<color=yellow>⚠️ [Brain] groundLayerMask 未配置！请在 Inspector 中勾选 Ground 层。</color>");
             return;
         }
 
+        // 【TD 升华】RaycastNonAlloc：向下单射线求交点——这是贴地的数学正解。
+        // 起点抬高 2m 防止原点陷入地下；缓冲区 [1] 取首个命中，0 GC，O(1)。
+        // 同时通过 groundLayerMask 在 C++ 层直接过滤，彻底告别 string.Contains() 字符串毒药。
         int hitCount = Physics.RaycastNonAlloc(
-            spawnPos + Vector3.up * 5f,
+            spawnPos + Vector3.up * 2f,
             Vector3.down,
             groundHitBuffer,
             10f,
@@ -273,15 +272,25 @@ public class EnemyAttackBrain : MonoBehaviour
 
         if (hitCount > 0)
         {
-            Vector3 groundPoint = groundHitBuffer[0].point;
+            // 精确交点 + 法线（可用于日后让 Puddle 贴合斜坡 Quaternion.LookRotation）
+            Vector3 exactGroundPoint = groundHitBuffer[0].point;
+            Vector3 groundNormal     = groundHitBuffer[0].normal;
+
+            // 双重保险：仅处理确认命中 Ground 层的结果（cachedGroundLayer 预缓存，0 字符串开销）
+            if (groundHitBuffer[0].collider.gameObject.layer != cachedGroundLayer)
+            {
+                Debug.LogWarning("<color=yellow>⚠️ [Brain] 射线命中对象不属于 Ground 层，Puddle 生成跳过。</color>");
+                return;
+            }
 
             if (PuddleManager.Instance != null)
             {
-                bool isSpecial = Random.value <= puddleSpecialProbability;
+                bool isSpecial       = Random.value <= puddleSpecialProbability;
                 float sizeMultiplier = Random.Range(puddleSizeMultiplierMin, puddleSizeMultiplierMax);
 
-                // 传入 Neutral 极性以保证始终触发统一的纯紫或特化高光逻辑
-                ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(groundPoint + Vector3.up * 0.01f, Polarity.Neutral, isSpecial);
+                // 贴地偏移 0.01f 避免 Z-fighting；传入 Neutral 极性确保高光逻辑统一
+                ChaosPuddle puddle = PuddleManager.Instance.GetPuddleFromPool(
+                    exactGroundPoint + groundNormal * 0.01f, Polarity.Neutral, isSpecial);
 
                 // 🎵 播放污染区生成音效
                 if (AudioManager.Instance != null && AudioManager.Instance.sfxPuddleSpawn != null)
@@ -354,7 +363,7 @@ public class EnemyAttackBrain : MonoBehaviour
             blueSmashHitbox.DeactivateHitbox();
 
             // 【补全逻辑】：紫光态攻击后同样按照概率生成污染区，确保反馈一致性
-            TrySpawnChaosPuddle(Polarity.Neutral);
+            TrySpawnChaosPuddle(playerTransform != null ? playerTransform.position : transform.position);
 
             visualController.ResetVisual();
             shapeMorpher.ResetShape(0.1f);

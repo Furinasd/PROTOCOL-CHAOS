@@ -147,7 +147,8 @@ public class EnemyWorldHUD : MonoBehaviour
         if (damage > 0.01f)
         {
             PulseBar(hpFill);
-            SpawnDamagePopup(Mathf.RoundToInt(damage));
+            // 【核心优化】不再私自 new GameObject，强制使用全局 0-GC 对象池
+            CombatHUDManager.Instance?.SpawnHeadDamagePopup(transform.position + worldOffset + new Vector3(0, 0.4f, 0), Mathf.RoundToInt(damage));
         }
 
         lastHpRaw = current;
@@ -178,44 +179,9 @@ public class EnemyWorldHUD : MonoBehaviour
         barRect.DOPunchScale(new Vector3(0.18f, 0.18f, 0f), 0.2f, 12, 0.7f).SetUpdate(true);
     }
 
-    private void SpawnDamagePopup(int damage)
-    {
-        if (root == null || damage <= 0)
-        {
-            return;
-        }
+    // 【已废弃】私有漂字生成逻辑由于会导致严重的内存膨胀（792MB GC Heap），现已统一重定向至 CombatHUDManager
+    // private void SpawnDamagePopup(int damage) { ... }
 
-        GameObject go = new GameObject("DamagePopup", typeof(RectTransform), typeof(TextMeshProUGUI));
-        RectTransform rt = go.GetComponent<RectTransform>();
-        rt.SetParent(root, false);
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = damagePopupStart;
-        rt.sizeDelta = new Vector2(120f, 36f);
-
-        TextMeshProUGUI tmp = go.GetComponent<TextMeshProUGUI>();
-        tmp.text = $"-{damage}";
-        tmp.fontSize = damagePopupFontSize;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = damagePopupColor;
-        tmp.raycastTarget = false;
-        tmp.textWrappingMode = TextWrappingModes.NoWrap;
-        if (popupFont == null)
-        {
-            popupFont = TMP_Settings.defaultFontAsset;
-        }
-        if (popupFont != null)
-        {
-            tmp.font = popupFont;
-        }
-
-        Sequence seq = DOTween.Sequence();
-        seq.Append(rt.DOAnchorPosY(damagePopupStart.y + damagePopupRise, damagePopupDuration).SetEase(Ease.OutQuad));
-        seq.Join(tmp.DOFade(0f, damagePopupDuration).SetEase(Ease.InQuad));
-        seq.OnComplete(() => Destroy(go));
-        seq.SetUpdate(true);
-    }
 
     public void TriggerAnomalyCoreParryPulse()
     {
