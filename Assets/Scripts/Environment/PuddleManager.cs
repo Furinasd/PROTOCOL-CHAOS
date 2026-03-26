@@ -44,6 +44,9 @@ public class PuddleManager : MonoBehaviour
 
     // 全局净化事件：供玩家完美弹刀时触发
     public static System.Action OnGlobalPurify;
+    public static System.Action OnFirstSpecialPuddleSpawned;
+
+    private bool hasRaisedFirstSpecialPuddleEvent;
 
     private void Awake()
     {
@@ -74,6 +77,13 @@ public class PuddleManager : MonoBehaviour
         puddle.transform.position = position;
         puddle.gameObject.SetActive(true);
         puddle.Contaminate(polarity, isSpecial);
+
+        if (isSpecial && !hasRaisedFirstSpecialPuddleEvent)
+        {
+            hasRaisedFirstSpecialPuddleEvent = true;
+            OnFirstSpecialPuddleSpawned?.Invoke();
+        }
+
         return puddle;
     }
 

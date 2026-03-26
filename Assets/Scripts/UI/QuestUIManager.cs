@@ -144,6 +144,8 @@ public class QuestUIManager : MonoBehaviour
             playerEnergySystem.OnTutorialCheatFilled += HandleTutorialCheatFilled;
             playerEnergySystem.OnEnergyFilled += HandleEnergyFilled;
         }
+
+        PuddleManager.OnFirstSpecialPuddleSpawned += HandleFirstSpecialPuddleSpawned;
     }
 
     private void OnDisable()
@@ -159,6 +161,8 @@ public class QuestUIManager : MonoBehaviour
             playerEnergySystem.OnTutorialCheatFilled -= HandleTutorialCheatFilled;
             playerEnergySystem.OnEnergyFilled -= HandleEnergyFilled;
         }
+
+        PuddleManager.OnFirstSpecialPuddleSpawned -= HandleFirstSpecialPuddleSpawned;
     }
 
     private void HandlePhaseChanged(QuestFlowManager.QuestPhase phase)
@@ -246,6 +250,11 @@ public class QuestUIManager : MonoBehaviour
     private void HandleEnergyFilled()
     {
         TriggerChargeJuice();
+    }
+
+    private void HandleFirstSpecialPuddleSpawned()
+    {
+        PlayTypewriter("【战术提示】\n白色高亮污染区内成功弹刀可造成双倍伤害。\n优先把战斗拉进高亮区！");
     }
 
     private void PlayTypewriter(string msg)
