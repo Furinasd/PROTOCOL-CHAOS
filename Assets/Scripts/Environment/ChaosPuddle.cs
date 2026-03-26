@@ -27,6 +27,8 @@ public class ChaosPuddle : MonoBehaviour
     [Header("表现层 (需在 Prefab 或 Inspector 赋值)")]
     public Material normalFloorMat;
     public Material purpleHazardMat;
+    [SerializeField] private Material blueHazardMat;
+    [SerializeField] private Material redHazardMat;
     public Material anomalyCoreMat;
 
     // 视觉组件（被动持有，只由自身 Contaminate/Purify 驱动）
@@ -36,6 +38,10 @@ public class ChaosPuddle : MonoBehaviour
     private MeshRenderer meshRenderer;
 
     private float originalY;
+
+    private Material ResolvedHazardMaterial =>
+        purpleHazardMat != null ? purpleHazardMat :
+        (blueHazardMat != null ? blueHazardMat : redHazardMat);
 
     // ── 供 PlayerController 轮询使用的公共数据 ──────────────────────────────
     /// <summary>污染区圆形半径（世界单位），用于 PlayerController 的距离判定。</summary>
@@ -69,7 +75,7 @@ public class ChaosPuddle : MonoBehaviour
         lineRenderer.endWidth = 0.08f;
         lineRenderer.positionCount = 37;
         lineRenderer.loop = true;
-        lineRenderer.material = purpleHazardMat;
+        lineRenderer.material = ResolvedHazardMaterial;
         lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
         glowLight.type = LightType.Point;
@@ -124,7 +130,7 @@ public class ChaosPuddle : MonoBehaviour
 
         if (meshRenderer != null)
         {
-            meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : purpleHazardMat;
+            meshRenderer.material = isCoreAnomaly ? anomalyCoreMat : ResolvedHazardMaterial;
 
             Sequence seq = DOTween.Sequence();
             seq.Append(transform.DOMoveY(originalY + 0.4f, 0.1f).SetEase(Ease.OutFlash));
@@ -133,7 +139,10 @@ public class ChaosPuddle : MonoBehaviour
             glowLight.enabled = true;
             glowLight.color = highlightColor;
 
-            lineRenderer.material.DOColor(highlightColor, "_BaseColor", 0.2f);
+            if (lineRenderer.material != null)
+            {
+                lineRenderer.material.DOColor(highlightColor, "_BaseColor", 0.2f);
+            }
             DOTween.To(() => glowLight.intensity, x => glowLight.intensity = x, 2.5f, 0.2f);
 
             if (meshRenderer.material.HasProperty("_BaseColor"))

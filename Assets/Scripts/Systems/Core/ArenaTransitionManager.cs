@@ -16,7 +16,8 @@ public class ArenaTransitionManager : MonoBehaviour
     [SerializeField] private Ease riseEase = Ease.OutBack;
 
     [Header("Juice VFX")]
-    [SerializeField] private Material lightBeamMaterial; // 如果为空将自动创建一个基础的 Additive 材质
+    [SerializeField] private GameObject lightBeamPrefab;
+    [SerializeField] private Material lightBeamMaterial;
 
     [Header("Lighting")]
     [SerializeField] private Light keyLight;
@@ -137,12 +138,30 @@ public class ArenaTransitionManager : MonoBehaviour
             return;
         }
 
-        GameObject beamObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        beamObj.name = "ArenaLightBeam_Pooled";
-        Destroy(beamObj.GetComponent<Collider>());
-        beamObj.transform.SetParent(transform, true);
+        GameObject beamObj;
+        if (lightBeamPrefab != null)
+        {
+            beamObj = Instantiate(lightBeamPrefab, transform);
+            beamObj.name = "ArenaLightBeam_Pooled";
+        }
+        else
+        {
+            beamObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            beamObj.name = "ArenaLightBeam_Pooled";
+            Destroy(beamObj.GetComponent<Collider>());
+            beamObj.transform.SetParent(transform, true);
+        }
+
         beamTransform = beamObj.transform;
-        beamRenderer = beamObj.GetComponent<MeshRenderer>();
+        beamRenderer = beamObj.GetComponentInChildren<MeshRenderer>(true);
+        if (beamRenderer == null)
+        {
+            Debug.LogWarning("[ArenaTransition] Light beam prefab 未找到 MeshRenderer，已跳过光柱演出。", this);
+            Destroy(beamObj);
+            beamTransform = null;
+            return;
+        }
+
         beamRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         beamRenderer.receiveShadows = false;
 
@@ -150,22 +169,14 @@ public class ArenaTransitionManager : MonoBehaviour
         {
             beamSharedMaterial = lightBeamMaterial;
         }
-        else
-        {
-            Shader unlit = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-            if (unlit != null)
-            {
-                beamSharedMaterial = new Material(unlit);
-                beamSharedMaterial.SetColor("_BaseColor", new Color(0.2f, 0.8f, 1f, 0.6f));
-                beamSharedMaterial.SetFloat("_Surface", 1f);
-                beamSharedMaterial.SetFloat("_Blend", 0f);
-                beamSharedMaterial.renderQueue = 3000;
-            }
-        }
 
         if (beamSharedMaterial != null)
         {
             beamRenderer.sharedMaterial = beamSharedMaterial;
+        }
+        else if (beamRenderer.sharedMaterial == null)
+        {
+            Debug.LogWarning("[ArenaTransition] 未配置 lightBeamMaterial 且 prefab 无内置材质，光柱可能不可见。", this);
         }
 
         beamMpb = new MaterialPropertyBlock();
