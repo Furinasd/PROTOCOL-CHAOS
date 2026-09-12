@@ -78,7 +78,7 @@ Thumbs.db
 # Project Specific
 Coplay/
 Skills/
-Arts/
+# Assets/Arts is versioned with its original .meta GUIDs.
 .agent/
 .agents/
 .codex/

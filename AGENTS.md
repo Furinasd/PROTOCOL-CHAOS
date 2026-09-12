@@ -2,6 +2,8 @@
 
 本文面向第一次进入本仓库的 AI Agent。目标是建立可操作的项目心智模型：先找到事实源，再理解运行链路，最后按项目现有方式修改和验证。
 
+> 2026-09-12 交付更新：远端正式名称为 `Furinasd/PROTOCOL-CHAOS`。本次纳入 `Assets/Arts/` 既有资源并保留 GUID，原先“Arts 被忽略”的描述属于历史状态，以当前 `.gitignore`、`docs/asset-manifest.csv` 与 `docs/validation.md` 为准。没有在本轮执行 Unity 编译或运行验证；本地 Phase 2 修订和实验测试未随文档/资源交付提交。
+
 ## 1. 适用范围与事实优先级
 
 - **实际 Git 根目录是本目录 `mhyTest/`**。上一级 `../` 是工作区包装层，包含规划文档、历史报告、压缩包和 Windows 构建产物，但不属于当前 Git 仓库。
