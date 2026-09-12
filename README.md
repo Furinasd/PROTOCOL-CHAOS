@@ -4,7 +4,7 @@
 
 <p align="center">Unity 6000.3.6f1 · C# · URP 17.3 · Single-scene tutorial · 9-day initial prototype</p>
 
-<p align="center"><a href="https://app.notion.com/p/3b56dbf617ac81e9b640cf2823cf4629">Portfolio case study</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/design-decisions.md">Design decisions</a> · <a href="docs/validation.md">Validation & limits</a> · <a href="docs/setup.md">Setup</a></p>
+<p align="center"><a href="https://elysugar.notion.site/protocol-chaos-3d?source=copy_link">Portfolio case study</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/design-decisions.md">Design decisions</a> · <a href="docs/validation.md">Validation & limits</a> · <a href="docs/setup.md">Setup</a></p>
 
 ## 一个动作设计问题
 
